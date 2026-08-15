@@ -46,7 +46,7 @@ export function RequestDetailPage() {
   }, [showSuccess]);
 
   const canReply = request && !["resolved", "closed"].includes(request.status);
-  const canReopen = request?.status === "resolved";
+  // const canReopen = request?.status === "resolved";
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
