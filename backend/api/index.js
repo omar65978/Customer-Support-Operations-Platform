@@ -2,22 +2,25 @@ const jsonServer = require("json-server");
 const auth = require("json-server-auth");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 
 const app = jsonServer.create();
 
-const router = jsonServer.router(path.join(process.cwd(), "db.json"));
+const dbPath = path.resolve(process.cwd(), "db.json");
+
+let router;
+if (fs.existsSync(dbPath)) {
+  router = jsonServer.router(dbPath);
+} else {
+  router = jsonServer.router(path.join(__dirname, "..", "db.json"));
+}
 
 const middlewares = jsonServer.defaults();
 
 app.db = router.db;
 
 app.use(cors({
-  origin: [
-    'https://support-platform-sable.vercel.app',
-    'https://support-platform-5kx1.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:4200'
-  ],
+  origin: '*',
   credentials: true
 }));
 
