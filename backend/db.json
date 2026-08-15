@@ -1,0 +1,223 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "email": "alice@example.com",
+      "password": "$2a$10$BGkQnliGJh2lEHy.Qb4DZ.guBGb4TM/bs2pVog7OaFk.Ig46iC/zq",
+      "name": "Alice Johnson",
+      "role": "customer"
+    },
+    {
+      "id": "u2",
+      "email": "bob@example.com",
+      "password": "$2a$10$BGkQnliGJh2lEHy.Qb4DZ.guBGb4TM/bs2pVog7OaFk.Ig46iC/zq",
+      "name": "Bob Martinez",
+      "role": "customer"
+    },
+    {
+      "id": "u3",
+      "email": "agent1@support.com",
+      "password": "$2a$10$BGkQnliGJh2lEHy.Qb4DZ.guBGb4TM/bs2pVog7OaFk.Ig46iC/zq",
+      "name": "Sarah Chen",
+      "role": "agent"
+    },
+    {
+      "id": "u4",
+      "email": "agent2@support.com",
+      "password": "$2a$10$BGkQnliGJh2lEHy.Qb4DZ.guBGb4TM/bs2pVog7OaFk.Ig46iC/zq",
+      "name": "James Wright",
+      "role": "agent"
+    },
+    {
+      "id": "u5",
+      "email": "manager@support.com",
+      "password": "$2a$10$R7uUKlL4RL8Vy6x.BqRu0e5H8QzUkOiuJH.FQaF.l5k1X1WGdxvyS",
+      "name": "Maria Rodriguez",
+      "role": "manager"
+    }
+  ],
+  "requests": [
+    {
+      "id": "r1",
+      "reference": "REQ-001",
+      "customerId": "u1",
+      "assignedAgentId": "u3",
+      "title": "Cannot access my billing history",
+      "description": "I have been trying to access my billing history for the past week but the page keeps showing an error. I need to download invoices for my accounting records urgently.",
+      "category": "billing",
+      "priority": "high",
+      "status": "in_progress",
+      "createdAt": "2026-08-01T09:00:00.000Z",
+      "updatedAt": "2026-08-05T14:30:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "r2",
+      "reference": "REQ-002",
+      "customerId": "u1",
+      "assignedAgentId": "u3",
+      "title": "Two-factor authentication not working",
+      "description": "After enabling 2FA on my account last Tuesday, I stopped receiving the verification codes on my phone. I have tried resetting it three times with no success.",
+      "category": "account",
+      "priority": "urgent",
+      "status": "waiting_for_customer",
+      "createdAt": "2026-08-02T11:15:00.000Z",
+      "updatedAt": "2026-08-06T10:00:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "r3",
+      "reference": "REQ-003",
+      "customerId": "u1",
+      "assignedAgentId": null,
+      "title": "API rate limiting causing integration failures",
+      "description": "Our integration is hitting rate limits despite being well within the documented thresholds. This is causing approximately 15% of our API calls to fail during peak hours.",
+      "category": "technical",
+      "priority": "medium",
+      "status": "open",
+      "createdAt": "2026-08-07T08:00:00.000Z",
+      "updatedAt": "2026-08-07T08:00:00.000Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "r4",
+      "reference": "REQ-004",
+      "customerId": "u2",
+      "assignedAgentId": "u4",
+      "title": "Refund not processed after 10 business days",
+      "description": "I cancelled my subscription on July 20th and was told the refund would be processed within 5-7 business days. It has now been 10 business days and I still have not received my refund.",
+      "category": "billing",
+      "priority": "high",
+      "status": "resolved",
+      "createdAt": "2026-07-22T14:00:00.000Z",
+      "updatedAt": "2026-08-06T16:45:00.000Z",
+      "resolvedAt": "2026-08-06T16:45:00.000Z"
+    },
+    {
+      "id": "r5",
+      "reference": "REQ-005",
+      "customerId": "u2",
+      "assignedAgentId": null,
+      "title": "Dashboard widgets not loading on Safari",
+      "description": "All dashboard widgets show a spinning loader indefinitely when I use Safari 17 on my MacBook Pro. Chrome and Firefox work fine. This started after your last update on August 1st.",
+      "category": "technical",
+      "priority": "medium",
+      "status": "open",
+      "createdAt": "2026-08-03T16:20:00.000Z",
+      "updatedAt": "2026-08-03T16:20:00.000Z",
+      "resolvedAt": null
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "requestId": "r1",
+      "authorId": "u1",
+      "authorName": "Alice Johnson",
+      "authorRole": "customer",
+      "content": "I have been trying to access my billing history for the past week but the page keeps showing an error. I need to download invoices for my accounting records urgently.",
+      "isInternal": false,
+      "createdAt": "2026-08-01T09:00:00.000Z"
+    },
+    {
+      "id": "m2",
+      "requestId": "r1",
+      "authorId": "u3",
+      "authorName": "Sarah Chen",
+      "authorRole": "agent",
+      "content": "Hi Alice, thank you for contacting us. I have taken ownership of your case and am currently investigating the billing history issue. I can see this is affecting your accounting workflow — I will prioritize this.",
+      "isInternal": false,
+      "createdAt": "2026-08-01T10:30:00.000Z"
+    },
+    {
+      "id": "m3",
+      "requestId": "r1",
+      "authorId": "u3",
+      "authorName": "Sarah Chen",
+      "authorRole": "agent",
+      "content": "Checked the billing service logs — there is a database migration running that locked the billing_history table for user IDs in the 1000-2000 range. Alice's account falls in this range. Should resolve automatically by EOD.",
+      "isInternal": true,
+      "createdAt": "2026-08-01T10:45:00.000Z"
+    },
+    {
+      "id": "m4",
+      "requestId": "r1",
+      "authorId": "u1",
+      "authorName": "Alice Johnson",
+      "authorRole": "customer",
+      "content": "Thank you for looking into this. I still cannot access the page as of this morning. Could you give me an ETA?",
+      "isInternal": false,
+      "createdAt": "2026-08-05T09:00:00.000Z"
+    },
+    {
+      "id": "m5",
+      "requestId": "r1",
+      "authorId": "u3",
+      "authorName": "Sarah Chen",
+      "authorRole": "agent",
+      "content": "Hi Alice, I apologize for the delay. We are deploying a hotfix tonight. You should have full access by tomorrow morning. I will confirm once the deployment is complete.",
+      "isInternal": false,
+      "createdAt": "2026-08-05T14:30:00.000Z"
+    },
+    {
+      "id": "m6",
+      "requestId": "r2",
+      "authorId": "u1",
+      "authorName": "Alice Johnson",
+      "authorRole": "customer",
+      "content": "After enabling 2FA on my account last Tuesday, I stopped receiving the verification codes on my phone. I have tried resetting it three times with no success.",
+      "isInternal": false,
+      "createdAt": "2026-08-02T11:15:00.000Z"
+    },
+    {
+      "id": "m7",
+      "requestId": "r2",
+      "authorId": "u3",
+      "authorName": "Sarah Chen",
+      "authorRole": "agent",
+      "content": "Hello Alice, I am reviewing your 2FA issue. Could you please confirm: (1) Which phone number is registered for 2FA? (2) Have you recently changed your phone or phone number? (3) Are you checking SMS or an authenticator app?",
+      "isInternal": false,
+      "createdAt": "2026-08-06T10:00:00.000Z"
+    },
+    {
+      "id": "m8",
+      "requestId": "r4",
+      "authorId": "u2",
+      "authorName": "Bob Martinez",
+      "authorRole": "customer",
+      "content": "I cancelled my subscription on July 20th and was told the refund would be processed within 5-7 business days. It has now been 10 business days and I still have not received my refund.",
+      "isInternal": false,
+      "createdAt": "2026-07-22T14:00:00.000Z"
+    },
+    {
+      "id": "m9",
+      "requestId": "r4",
+      "authorId": "u4",
+      "authorName": "James Wright",
+      "authorRole": "agent",
+      "content": "Hi Bob, I have investigated your refund case. Our payment processor shows the refund was initiated on July 22nd but appears to have been delayed by your bank's processing queue. I have escalated this with our finance team.",
+      "isInternal": false,
+      "createdAt": "2026-08-01T11:00:00.000Z"
+    },
+    {
+      "id": "m10",
+      "requestId": "r4",
+      "authorId": "u4",
+      "authorName": "James Wright",
+      "authorRole": "agent",
+      "content": "Finance confirmed the refund of $89.99 was reprocessed and will appear in Bob's account within 2-3 business days. Case resolved.",
+      "isInternal": true,
+      "createdAt": "2026-08-06T16:30:00.000Z"
+    },
+    {
+      "id": "m11",
+      "requestId": "r4",
+      "authorId": "u4",
+      "authorName": "James Wright",
+      "authorRole": "agent",
+      "content": "Great news Bob! Your refund of $89.99 has been reprocessed and should appear in your account within 2-3 business days. We apologize for the inconvenience and delay. Please let us know if you do not see it by August 10th.",
+      "isInternal": false,
+      "createdAt": "2026-08-06T16:45:00.000Z"
+    }
+  ]
+}
