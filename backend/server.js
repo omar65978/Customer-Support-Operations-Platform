@@ -10,12 +10,16 @@ const middlewares = jsonServer.defaults({ noCors: true });
 
 app.db = router.db;
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://localhost:4200"],
-    credentials: true,
-  })
-);
+const cors = require('cors');
+app.use(cors({
+  origin: [
+    'https://support-platform-sable.vercel.app',
+    'https://support-platform-5kx1.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:4200'
+  ],
+  credentials: true
+}));
 
 app.use(middlewares);
 
@@ -30,8 +34,5 @@ app.use(
 app.use(auth);
 app.use(router);
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Support Platform API running on http://localhost:${PORT}`);
-  console.log(`Auth endpoints: POST /register, POST /login`);
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
