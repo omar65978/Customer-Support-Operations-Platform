@@ -1,40 +1,17 @@
-const jsonServer = require("json-server");
-const auth = require("json-server-auth");
-const cors = require("cors");
-const path = require("path");
-const fs = require("fs");
+const jsonServer = require('json-server');
+const path = require('path');
+const fs = require('fs');
 
-const app = jsonServer.create();
-
-const dbPath = path.resolve(process.cwd(), "db.json");
-
-let router;
-if (fs.existsSync(dbPath)) {
-  router = jsonServer.router(dbPath);
-} else {
-  router = jsonServer.router(path.join(__dirname, "..", "db.json"));
-}
-
+const server = jsonServer.create();
 const middlewares = jsonServer.defaults();
 
-app.db = router.db;
+const filePath = path.join(process.cwd(), 'db.json');
+const rawData = fs.readFileSync(filePath, 'utf-8');
+const data = JSON.parse(rawData);
 
-app.use(cors({
-  origin: '*',
-  credentials: true
-}));
+const router = jsonServer.router(data);
 
-app.use(middlewares);
+server.use(middlewares);
+server.use(router);
 
-app.use(
-  auth.rewriter({
-    users: 640,
-    requests: 660,
-    messages: 660,
-  })
-);
-
-app.use(auth);
-app.use(router);
-
-module.exports = app;
+module.exports = server;
