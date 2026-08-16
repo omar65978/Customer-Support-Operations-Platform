@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { RouterOutlet } from '@angular/router';
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
@@ -8,22 +9,8 @@ describe('AppComponent', () => {
     }).compileComponents();
   });
 
-  it('should create the app', () => {
+  it('should create the app root component', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
-  });
-
-  it(`should have the 'support-workspace' title`, () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app.title).toEqual('support-workspace');
-  });
-
-  it('should render title', () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, support-workspace');
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
