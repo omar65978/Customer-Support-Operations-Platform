@@ -4,7 +4,7 @@ A full-stack customer support platform with two connected frontend applications 
 
 | App | Technology | Port | Purpose |
 |---|---|---|---|
-| **Backend** | JSON Server + json-server-auth | 3001 | Shared REST API with JWT auth |
+| **Backend** | JSON Server + json-server-auth | 3001 | Shared REST API with JWT auth + CORS |
 | **Customer Portal** | React 19 + Vite + TypeScript + Tailwind CSS | 5173 | Customer-facing support portal |
 | **Support Workspace** | Angular 18 + Angular Material | 4200 | Agent and Manager workspace |
 
@@ -15,19 +15,19 @@ A full-stack customer support platform with two connected frontend applications 
 ```
 support-platform/
 ├── backend/                    # JSON Server + json-server-auth
-│   ├── server.js               # CORS, auth rewriter, server setup
+│   ├── server.js               # CORS, auth rewriter rules (640), server setup
 │   ├── db.json                 # Seed data: users, requests, messages
 │   └── package.json
 │
 ├── customer-portal/            # React 19 + Vite + TypeScript + Tailwind
 │   ├── src/
-│   │   ├── api/                # Axios API client modules
-│   │   ├── components/         # Reusable UI, layout, and request components
+│   │   ├── api/                # Axios client with JWT interceptor
+│   │   ├── components/         # UI, layout, request, message components
 │   │   ├── contexts/           # AuthContext — session management
 │   │   ├── hooks/              # useRequests, useMessages
 │   │   ├── pages/              # Login, Register, Dashboard, NewRequest, RequestDetail
-│   │   ├── test/               # Vitest test suite
-│   │   ├── types/              # TypeScript interfaces and types
+│   │   ├── test/               # Vitest test suite (17 tests)
+│   │   ├── types/              # TypeScript interfaces
 │   │   └── utils/              # Status labels and display helpers
 │   └── package.json
 │
@@ -44,7 +44,7 @@ support-platform/
 
 ## Prerequisites
 
-- **Node.js** v18 or v20 LTS (recommended)
+- **Node.js** v18 or v20 LTS
 - **npm** v9+
 - **Chrome** (required for Angular Karma tests)
 
@@ -52,32 +52,17 @@ support-platform/
 
 ## Installation
 
-### 1. Backend
-
 ```bash
-cd backend
-npm install
-```
-
-### 2. Customer Portal (React)
-
-```bash
-cd customer-portal
-npm install
-```
-
-### 3. Support Workspace (Angular)
-
-```bash
-cd support-workspace
-npm install
+cd backend && npm install
+cd customer-portal && npm install
+cd support-workspace && npm install
 ```
 
 ---
 
 ## Running the Applications
 
-All three services must run concurrently in separate terminals.
+Open three separate terminals.
 
 ### Terminal 1 — Backend API
 
@@ -88,7 +73,7 @@ npm start
 
 API available at **http://localhost:3001**
 
-### Terminal 2 — Customer Portal
+### Terminal 2 — Customer Portal (React)
 
 ```bash
 cd customer-portal
@@ -97,7 +82,7 @@ npm run dev
 
 Open **http://localhost:5173**
 
-### Terminal 3 — Support Workspace
+### Terminal 3 — Support Workspace (Angular)
 
 ```bash
 cd support-workspace
@@ -112,25 +97,21 @@ Open **http://localhost:4200**
 
 ### Customer Portal
 
-Copy `.env.example` to `.env`:
+The file `customer-portal/.env` is already configured. No changes needed for local development.
 
-```bash
-cp customer-portal/.env.example customer-portal/.env
+```
+VITE_API_URL=http://localhost:3001
 ```
 
-| Variable | Description | Required |
-|---|---|---|
-| `VITE_API_URL` | Backend API base URL | Yes |
+Copy `customer-portal/.env.example` if you need to reset it.
 
-Default value: `http://localhost:3001`
-
-The Angular workspace reads its API URL from `src/environments/environment.ts`. No `.env` file is needed for Angular in development.
+The Angular workspace reads from `src/environments/environment.ts`. No `.env` file required.
 
 ---
 
 ## Test Accounts
 
-> All demo accounts use password: `password123`
+All passwords: `password123`
 
 | Role | Email | Application |
 |---|---|---|
@@ -140,7 +121,7 @@ The Angular workspace reads its API URL from `src/environments/environment.ts`. 
 | Support Agent | agent2@support.com | Angular workspace |
 | Support Manager | manager@support.com | Angular workspace — full access |
 
-Demo credentials are displayed on both login screens for reviewer convenience.
+Demo credentials are shown on both login screens.
 
 ---
 
@@ -153,16 +134,14 @@ cd customer-portal
 npm run test
 ```
 
-Test files in `src/test/`:
-
-| File | Coverage |
+| File | Tests |
 |---|---|
-| `AuthContext.test.tsx` | Session initialization, login, logout, corrupted localStorage |
-| `ProtectedRoutes.test.tsx` | Route guards for authenticated and unauthenticated users |
-| `NewRequestPage.test.tsx` | Form validation: empty fields, min-length, customer ID binding |
-| `DataIsolation.test.ts` | Internal note filtering, customer-only message posting |
+| `AuthContext.test.tsx` | Session init, login, logout, localStorage restore, corrupted storage |
+| `ProtectedRoutes.test.tsx` | Unauthenticated redirect, authenticated access, public route redirect |
+| `NewRequestPage.test.tsx` | Form validation: empty, too-short, and valid submission |
+| `DataIsolation.test.ts` | Internal note filtering, customer-only posting, auth response format |
 
-**Result: 16 tests, 4 suites — all pass**
+**Result: 17 tests, 4 suites — all pass**
 
 ### Angular — Jasmine + Karma
 
@@ -171,14 +150,12 @@ cd support-workspace
 npm test -- --watch=false
 ```
 
-Spec files:
-
-| File | Coverage |
+| File | Tests |
 |---|---|
 | `app.component.spec.ts` | Root component renders |
-| `auth.service.spec.ts` | Login, logout, role assignment, observable emission |
-| `auth.guard.spec.ts` | Guard allows authenticated users, redirects unauthenticated users |
-| `requests.service.spec.ts` | CRUD operations, status transitions, assignment logic |
+| `auth.service.spec.ts` | Login (nested response format), logout, role assignment, localStorage |
+| `auth.guard.spec.ts` | Allows authenticated users, redirects unauthenticated users |
+| `requests.service.spec.ts` | CRUD, status transitions, assignment logic |
 | `messages.service.spec.ts` | Message posting with correct isInternal flag |
 
 **Result: 25 tests — all pass**
@@ -187,19 +164,51 @@ Spec files:
 
 ## Build Commands
 
-### React production build
-
 ```bash
-cd customer-portal
-npm run build
+cd customer-portal && npm run build
+cd support-workspace && npm run build
 ```
 
-### Angular production build
+Both build cleanly with zero TypeScript errors.
 
-```bash
-cd support-workspace
-npm run build
+---
+
+## Authentication
+
+Both applications use `json-server-auth` which provides `/login` and `/register` endpoints. Passwords are bcrypt-hashed. On successful login, the server returns:
+
+```json
+{
+  "accessToken": "<jwt>",
+  "user": { "id": "u1", "email": "...", "name": "...", "role": "customer" }
+}
 ```
+
+The JWT is stored in `localStorage` and attached to all subsequent API requests via an Axios interceptor (React) and an `HttpInterceptor` (Angular). A 401 response automatically clears the session and redirects to `/login`.
+
+---
+
+## Authorization
+
+### Backend Protection
+
+All `/users`, `/requests`, and `/messages` endpoints require a valid JWT (rule `640`). Unauthenticated requests receive `401 Missing authorization header`.
+
+### Customer Data Isolation
+
+- React `fetchMyRequests` always queries `/requests?customerId={userId}` using the authenticated user's own ID
+- `RequestDetailPage` checks `request.customerId !== user.id` and redirects if the IDs do not match — preventing access via direct URL manipulation
+- The customer cannot access the Angular workspace (different application, different port)
+
+### Internal Notes
+
+- React `fetchMessages` filters `isInternal === true` records before returning them to the UI
+- React `sendMessage` hardcodes `isInternal: false` and `authorRole: "customer"` — customers cannot post internal notes
+
+### Route Guards
+
+- **React**: `ProtectedRoute` redirects unauthenticated users to `/login`. `PublicRoute` redirects authenticated users away from `/login`
+- **Angular**: `authGuard` is applied to the shell layout, redirecting unauthenticated users to `/login`
 
 ---
 
@@ -207,101 +216,48 @@ npm run build
 
 ### SupportRequest
 
-| Field | Type | Description |
-|---|---|---|
-| id | string | Unique identifier |
-| reference | string | Human-readable reference (REQ-001) |
-| customerId | string | Owning customer ID |
-| assignedAgentId | string \| null | Assigned support agent ID |
-| title | string | Brief summary |
-| description | string | Full description |
-| category | billing \| technical \| account \| general | Issue category |
-| priority | low \| medium \| high \| urgent | Urgency level |
-| status | open \| in_progress \| waiting_for_customer \| resolved \| closed | Lifecycle state |
-| createdAt | ISO datetime | Submission time |
-| updatedAt | ISO datetime | Last modification |
-| resolvedAt | ISO datetime \| null | Resolution time |
+| Field | Type |
+|---|---|
+| id | string |
+| reference | string (REQ-001) |
+| customerId | string |
+| assignedAgentId | string \| null |
+| title | string |
+| description | string |
+| category | billing \| technical \| account \| general |
+| priority | low \| medium \| high \| urgent |
+| status | open \| in_progress \| waiting_for_customer \| resolved \| closed |
+| createdAt | ISO datetime |
+| updatedAt | ISO datetime |
+| resolvedAt | ISO datetime \| null |
 
 ### Message
 
-| Field | Type | Description |
-|---|---|---|
-| id | string | Unique identifier |
-| requestId | string | Linked support request |
-| authorId | string | Author's user ID |
-| authorName | string | Author's display name |
-| authorRole | customer \| agent \| manager | Author's role at time of writing |
-| content | string | Message body |
-| isInternal | boolean | True for support-team-only notes |
-| createdAt | ISO datetime | Message timestamp |
-
-### Request Lifecycle
-
-```
-open → in_progress          (agent claims request)
-in_progress → waiting_for_customer   (agent requests information)
-in_progress → resolved      (agent resolves)
-waiting_for_customer → in_progress   (customer replies)
-waiting_for_customer → resolved      (agent resolves directly)
-resolved → in_progress      (customer reopens)
-resolved → closed           (agent closes)
-closed → (terminal state)
-```
-
----
-
-## Authorization Strategy
-
-### Authentication
-
-Both applications use the same JSON Server backend with `json-server-auth` providing `/login` and `/register` endpoints. Passwords are bcrypt-hashed. Successful login returns a JWT stored in `localStorage`.
-
-The Angular JWT interceptor (`core/interceptors/jwt.interceptor.ts`) attaches the token to all API requests. The React axios client (`api/axios.ts`) does the same via a request interceptor.
-
-### Route Protection
-
-**React**: `ProtectedRoute` redirects unauthenticated users to `/login`. `PublicRoute` redirects authenticated users to `/dashboard`.
-
-**Angular**: `authGuard` (`core/guards/auth.guard.ts`) is applied to all routes inside the shell layout, redirecting unauthenticated users to `/login`.
-
-### Data Access Control
-
-**Customer isolation**: The React `fetchMyRequests` function always queries `/requests?customerId={id}` using the authenticated user's ID. `RequestDetailPage` additionally checks `request.customerId !== user.id` and redirects if the IDs do not match.
-
-**Internal notes**: The React `fetchMessages` function (`api/messages.ts`) filters `isInternal === true` messages from the API response before returning them to the UI. Customers can never post internal messages — `sendMessage` hardcodes `isInternal: false` and `authorRole: "customer"`.
-
-**Role-based UI**: The Angular dashboard and request detail views show different actions depending on `currentUser.role`. The reassignment panel is only rendered for `manager` role users.
-
-### Known Limitation
-
-`json-server` does not support middleware-level row filtering. Internal note protection is enforced at the React API layer, not the database layer. A production system would enforce this in the backend with proper RLS policies.
-
----
-
-## Assumptions and Decisions
-
-1. **JSON Server** is used as the shared backend — minimal infrastructure, repeatable seed data, bcrypt authentication via `json-server-auth`
-2. The Angular workspace has no self-registration flow — agents and managers are pre-seeded in `db.json`
-3. JWT tokens are stored in `localStorage` — appropriate for this assignment scope
-4. Real-time updates are not implemented — pages refetch data on mount and navigation
-5. Pagination is implemented client-side in the Angular dashboard for the current data volume
+| Field | Type |
+|---|---|
+| id | string |
+| requestId | string |
+| authorId | string |
+| authorName | string |
+| authorRole | customer \| agent \| manager |
+| content | string |
+| isInternal | boolean |
+| createdAt | ISO datetime |
 
 ---
 
 ## Known Limitations
 
-- `json-server` does not enforce relational integrity
-- Backend-level internal note filtering is not possible without custom middleware
-- No pagination on the backend — all requests are loaded and paginated client-side
-- Password reset flow is not implemented
-- No file attachment support
+- `json-server` does not support field-level row filtering (no native RLS). Customer isolation uses `?customerId=` query params and frontend ownership checks. A production system would enforce this in the database layer.
+- JWT tokens expire after 1 hour (json-server-auth default). No refresh token flow is implemented.
+- No pagination at the backend — all requests are loaded and paginated client-side in the Angular dashboard.
+- The Angular workspace has no self-registration — agents and managers are pre-seeded in `db.json`.
 
 ---
 
 ## Production Considerations
 
-- Replace `json-server` with a production backend (Node.js + PostgreSQL, or Supabase)
-- Move JWT storage to `httpOnly` cookies to prevent XSS attacks
-- Implement proper Row Level Security policies at the database layer
+- Replace `json-server` with a production backend enforcing RLS policies
+- Move JWT to `httpOnly` cookies to prevent XSS
 - Add refresh token rotation
-- Enable HTTPS and configure CORS for production domains only
+- Enforce HTTPS and restrict CORS to production domains only
