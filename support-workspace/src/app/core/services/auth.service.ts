@@ -1,15 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import type { AuthUser, LoginCredentials, User } from '../models';
 import { environment } from '../../../environments/environment';
 
 interface LoginResponse {
   accessToken: string;
-  id: string;
-  email: string;
-  name: string;
-  role: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -48,10 +50,10 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${environment.apiUrl}/login`, credentials).pipe(
       tap((res) => {
         const user: AuthUser = {
-          id: res.id,
-          email: res.email,
-          name: res.name,
-          role: res.role as AuthUser['role'],
+          id: res.user.id,
+          email: res.user.email,
+          name: res.user.name,
+          role: res.user.role as AuthUser['role'],
           accessToken: res.accessToken,
         };
         localStorage.setItem('token', res.accessToken);
@@ -67,7 +69,10 @@ export class AuthService {
   }
 
   getAllAgents(): Observable<User[]> {
-    return this.http.get<User[]>(`${environment.apiUrl}/users`);
+    const params = new HttpParams().set('role', 'agent');
+    return this.http.get<User[]>(`${environment.apiUrl}/users`, { params }).pipe(
+      map((users) => users.filter((u) => u.role === 'agent'))
+    );
   }
 
   private clearStorage(): void {

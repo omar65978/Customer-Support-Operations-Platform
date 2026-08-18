@@ -57,8 +57,11 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('user-role')).toHaveTextContent('customer');
   });
 
-  it('sets user state and localStorage after successful login', async () => {
-    const mockUser = { id: 'u1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' as const, accessToken: 'new-token' };
+  it('sets user state and localStorage after successful login with nested user response', async () => {
+    const mockUser = {
+      id: 'u1', email: 'alice@example.com', name: 'Alice Johnson',
+      role: 'customer' as const, accessToken: 'new-token',
+    };
     vi.mocked(authApi.login).mockResolvedValueOnce(mockUser);
 
     render(
@@ -71,6 +74,7 @@ describe('AuthContext', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(screen.getByTestId('user-name')).toHaveTextContent('Alice Johnson'));
+    expect(screen.getByTestId('user-role')).toHaveTextContent('customer');
     expect(localStorage.getItem('token')).toBe('new-token');
   });
 

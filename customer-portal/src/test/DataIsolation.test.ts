@@ -86,4 +86,23 @@ describe('Customer data isolation', () => {
       authorRole: 'customer',
     }));
   });
+
+  it('auth login correctly reads nested user object from response', async () => {
+    const { default: mockClient } = await import('../api/axios') as unknown as { default: { post: ReturnType<typeof vi.fn> } };
+    const { login } = await import('../api/auth');
+
+    mockClient.post.mockResolvedValueOnce({
+      data: {
+        accessToken: 'test-jwt',
+        user: { id: 'u1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' },
+      },
+    });
+
+    const result = await login({ email: 'alice@example.com', password: 'password123' });
+
+    expect(result.id).toBe('u1');
+    expect(result.name).toBe('Alice Johnson');
+    expect(result.role).toBe('customer');
+    expect(result.accessToken).toBe('test-jwt');
+  });
 });

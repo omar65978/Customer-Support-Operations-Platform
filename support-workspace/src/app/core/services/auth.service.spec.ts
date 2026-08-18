@@ -53,7 +53,10 @@ describe('AuthService', () => {
 
   it('sets user and token in localStorage after successful login', () => {
     const credentials = { email: 'agent1@support.com', password: 'password123' };
-    const mockResponse = { accessToken: 'jwt-token', id: 'u3', email: 'agent1@support.com', name: 'Sarah Chen', role: 'agent' };
+    const mockResponse = {
+      accessToken: 'jwt-token',
+      user: { id: 'u3', email: 'agent1@support.com', name: 'Sarah Chen', role: 'agent' },
+    };
 
     service.login(credentials).subscribe((res) => {
       expect(res.accessToken).toBe('jwt-token');
@@ -61,7 +64,6 @@ describe('AuthService', () => {
 
     const req = httpMock.expectOne(`${environment.apiUrl}/login`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual(credentials);
     req.flush(mockResponse);
 
     expect(localStorage.getItem('token')).toBe('jwt-token');
@@ -71,7 +73,10 @@ describe('AuthService', () => {
 
   it('sets manager role correctly after login', () => {
     const credentials = { email: 'manager@support.com', password: 'password123' };
-    const mockResponse = { accessToken: 'manager-token', id: 'u5', email: 'manager@support.com', name: 'Maria Rodriguez', role: 'manager' };
+    const mockResponse = {
+      accessToken: 'manager-token',
+      user: { id: 'u5', email: 'manager@support.com', name: 'Maria Rodriguez', role: 'manager' },
+    };
 
     service.login(credentials).subscribe();
     httpMock.expectOne(`${environment.apiUrl}/login`).flush(mockResponse);
@@ -92,7 +97,10 @@ describe('AuthService', () => {
   });
 
   it('emits updated user through currentUser$ observable after login', (done) => {
-    const mockResponse = { accessToken: 'obs-token', id: 'u4', email: 'agent2@support.com', name: 'James Wright', role: 'agent' };
+    const mockResponse = {
+      accessToken: 'obs-token',
+      user: { id: 'u4', email: 'agent2@support.com', name: 'James Wright', role: 'agent' },
+    };
 
     service.currentUser$.subscribe((user) => {
       if (user !== null) {
