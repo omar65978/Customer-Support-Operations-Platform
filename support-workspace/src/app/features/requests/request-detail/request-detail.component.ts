@@ -543,6 +543,7 @@ export class RequestDetailComponent implements OnInit {
   request: SupportRequest | null = null;
   messages: Message[] = [];
   agents: User[] = [];
+  availableTransitions: { value: RequestStatus; label: string }[] = [];
 
   isLoading = true;
   messagesLoading = true;
@@ -558,11 +559,6 @@ export class RequestDetailComponent implements OnInit {
   reassignControl = new FormControl('');
 
   get currentUser() { return this.authService.currentUser; }
-  get availableTransitions() {
-    if (!this.request) return [];
-    const nexts = STATUS_TRANSITIONS[this.request.status] ?? [];
-    return nexts.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
-  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -575,10 +571,23 @@ export class RequestDetailComponent implements OnInit {
     }
   }
 
+  private computeTransitions(): void {
+    if (!this.request) {
+      this.availableTransitions = [];
+      return;
+    }
+    const nexts = STATUS_TRANSITIONS[this.request.status] ?? [];
+    this.availableTransitions = nexts.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+  }
+
   loadRequest(id: string): void {
     this.isLoading = true;
     this.requestsService.getOne(id).subscribe({
-      next: (r) => { this.request = r; this.isLoading = false; },
+      next: (r) => {
+        this.request = r;
+        this.computeTransitions();
+        this.isLoading = false;
+      },
       error: () => { this.error = 'Request not found or you do not have access.'; this.isLoading = false; },
     });
   }
@@ -629,6 +638,7 @@ export class RequestDetailComponent implements OnInit {
     this.requestsService.updateStatus(this.request!.id, newStatus).subscribe({
       next: (r) => {
         this.request = r;
+        this.computeTransitions();
         this.statusControl.reset();
         this.isUpdating = false;
         this.snackBar.open(`Status updated to "${STATUS_LABELS[newStatus]}"`, 'Dismiss', { duration: 3000 });
