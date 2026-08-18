@@ -32,7 +32,7 @@ export function Navbar() {
               <span className="text-xs text-slate-500">{user.email}</span>
             </div>
             <div className="h-9 w-9 flex items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white text-sm font-bold shadow-sm">
-              {user.name.charAt(0).toUpperCase()}
+              {(user?.name?.charAt(0) || '').toUpperCase()}
             </div>
             <button
               onClick={handleLogout}

@@ -106,6 +106,21 @@
       "createdAt": "2026-08-03T16:20:00.000Z",
       "updatedAt": "2026-08-03T16:20:00.000Z",
       "resolvedAt": null
+    },
+    {
+      "title": "ds ds ds dssd sd",
+      "description": "dds  sd d sd sd sd ds",
+      "category": "general",
+      "priority": "medium",
+      "status": "open",
+      "reference": "REQ-84689",
+      "createdAt": "2026-08-18T20:26:25.175Z",
+      "updatedAt": "2026-08-18T20:26:25.175Z",
+      "customerId": "u1",
+      "userId": "u1",
+      "user_id": "u1",
+      "customer_id": "u1",
+      "id": "4oTr5TN"
     }
   ],
   "messages": [

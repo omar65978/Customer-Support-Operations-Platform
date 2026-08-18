@@ -1,10 +1,9 @@
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useRequests } from "../hooks/useRequests";
 import { AppLayout } from "../components/layout/AppLayout";
+import type { RequestCategory, RequestPriority } from "../types";
 import { Spinner } from "../components/ui/Spinner";
-import type { RequestCategory, RequestPriority, NewRequestPayload } from "../types";
 
 const CATEGORIES: { value: RequestCategory; label: string; icon: string }[] = [
   { value: "billing", label: "Billing", icon: "💳" },
@@ -29,7 +28,6 @@ interface FormErrors {
 
 export function NewRequestPage() {
   const { user } = useAuth();
-  const { create } = useRequests(user?.id ?? "");
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
@@ -55,14 +53,45 @@ export function NewRequestPage() {
     if (!validate()) return;
     setIsSubmitting(true);
     setErrors({});
+    
     try {
-      const payload: NewRequestPayload = {
+      const token = localStorage.getItem("token"); 
+      
+      const randomRef = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      const payload = {
         title: title.trim(),
         description: description.trim(),
         category,
         priority,
+        status: "open",
+        reference: randomRef,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        
+        customerId: user?.id || "u1",
+        userId: user?.id || "u1",
+        user_id: user?.id || "u1",
+        customer_id: user?.id || "u1",
+        
       };
-      const newReq = await create(payload);
+
+
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+      const response = await fetch(`${API_URL}/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create request");
+      }
+
+      const newReq = await response.json();
       navigate(`/requests/${newReq.id}`, { state: { success: true } });
     } catch {
       setErrors({ general: "Failed to submit your request. Please try again." });
@@ -175,30 +204,22 @@ export function NewRequestPage() {
               rows={6}
               value={description}
               onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-              placeholder="Describe your issue in detail. Include any relevant context, steps you have tried, and the impact on your work."
+              placeholder="Describe your issue in detail."
               className={`input-field resize-none ${errors.description ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
             />
             <div className="flex justify-between">
-              {errors.description ? (
-                <p className="error-text">{errors.description}</p>
-              ) : (
-                <p className="mt-1 text-xs text-slate-400">Minimum 20 characters</p>
-              )}
-              <span className="mt-1 text-xs text-slate-400">{description.length} chars</span>
+               {errors.description && <p className="error-text">{errors.description}</p>}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <Link to="/dashboard" className="btn-secondary flex-1 justify-center">
-              Cancel
-            </Link>
+          <div className="flex justify-end gap-3 pt-4">
+            <Link to="/dashboard" className="btn btn-secondary">Cancel</Link>
             <button
               type="submit"
-              id="submit-request-btn"
               disabled={isSubmitting}
-              className="btn-primary flex-1 justify-center"
+              className="btn btn-primary min-w-[120px] flex items-center justify-center"
             >
-              {isSubmitting ? <><Spinner size="sm" /> Submitting…</> : "Submit Request"}
+              {isSubmitting ? <Spinner size="sm" /> : "Submit Request"}
             </button>
           </div>
         </form>
