@@ -2,10 +2,25 @@
 
 A full-stack customer support platform with two connected frontend applications backed by Supabase.
 
-### 🚀 Live Demos
-[![Customer Portal Demo](https://img.shields.io/badge/Live-Customer%20Portal%20(React)-blue?style=for-the-badge&logo=react)](https://customer-support-operations-platfor-taupe.vercel.app/)
+### 🚀 Live Demos & Source Code
 
-[![Agent Workspace Demo](https://img.shields.io/badge/Live-Agent%20Workspace%20(Angular)-red?style=for-the-badge&logo=angular)](https://customer-support-operations-platfor-murex.vercel.app/)
+<p align="center">
+  <a href="https://customer-support-operations-platfor-taupe.vercel.app/">
+    <img src="https://img.shields.io/badge/customer--portal-Live_Demo-007ACC?style=for-the-badge&logo=react&logoColor=white" alt="Customer Portal Demo" />
+  </a>
+  <a href="./customer-portal">
+    <img src="https://img.shields.io/badge/customer--portal-Source_Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Customer Portal Code" />
+  </a>
+  
+  <br/><br/>
+
+  <a href="https://customer-support-operations-platfor-murex.vercel.app/">
+    <img src="https://img.shields.io/badge/support--workspace-Live_Demo-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Support Workspace Demo" />
+  </a>
+  <a href="./support-workspace">
+    <img src="https://img.shields.io/badge/support--workspace-Source_Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Support Workspace Code" />
+  </a>
+</p>
 
 A full-stack customer support platform with two connected frontend applications backed by a shared REST API.
 
