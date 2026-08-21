@@ -1,9 +1,10 @@
+import { supabase } from "../supabaseClient";
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { AppLayout } from "../components/layout/AppLayout";
-import type { RequestCategory, RequestPriority } from "../types";
 import { Spinner } from "../components/ui/Spinner";
+import type { RequestCategory, RequestPriority } from "../types";
 
 const CATEGORIES: { value: RequestCategory; label: string; icon: string }[] = [
   { value: "billing", label: "Billing", icon: "💳" },
@@ -42,8 +43,15 @@ export function NewRequestPage() {
     if (!title.trim()) errs.title = "Please provide a title for your request.";
     else if (title.trim().length < 5) errs.title = "Title must be at least 5 characters.";
     else if (title.trim().length > 100) errs.title = "Title must be under 100 characters.";
+    
     if (!description.trim()) errs.description = "Please describe your issue.";
     else if (description.trim().length < 20) errs.description = "Description must be at least 20 characters.";
+    
+    // التحقق من وجود تسجيل الدخول
+    if (!user) {
+      errs.general = "You must be logged in to submit a request.";
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -51,50 +59,38 @@ export function NewRequestPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    
     setIsSubmitting(true);
     setErrors({});
     
     try {
-      const token = localStorage.getItem("token"); 
-      
       const randomRef = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
 
-      const payload = {
-        title: title.trim(),
-        description: description.trim(),
-        category,
-        priority,
-        status: "open",
-        reference: randomRef,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        
-        customerId: user?.id || "u1",
-        userId: user?.id || "u1",
-        user_id: user?.id || "u1",
-        customer_id: user?.id || "u1",
-        
-      };
+      const { data, error } = await supabase
+        .from('requests')
+        .insert([
+          {
+            title: title.trim(),
+            description: description.trim(),
+            category,
+            priority,
+            status: "open",
+            reference: randomRef,
+            customer_id: user?.id, // استخدام معرّف المستخدم الفعلي
+            created_at: new Date().toISOString() // اختيارياً لضمان التوقيت في حال عدم ضبط القيمة الافتراضية بـ Supabase
+          }
+        ])
+        .select()
+        .single();
 
-
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      const response = await fetch(`${API_URL}/requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create request");
+      if (error) {
+        throw error;
       }
 
-      const newReq = await response.json();
-      navigate(`/requests/${newReq.id}`, { state: { success: true } });
-    } catch {
-      setErrors({ general: "Failed to submit your request. Please try again." });
+      navigate(`/requests/${data.id}`, { state: { success: true } });
+    } catch (err: any) {
+      console.error("Supabase submission error:", err);
+      setErrors({ general: err?.message || "Failed to submit your request to Supabase. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
@@ -208,7 +204,7 @@ export function NewRequestPage() {
               className={`input-field resize-none ${errors.description ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
             />
             <div className="flex justify-between">
-               {errors.description && <p className="error-text">{errors.description}</p>}
+              {errors.description && <p className="error-text">{errors.description}</p>}
             </div>
           </div>
 

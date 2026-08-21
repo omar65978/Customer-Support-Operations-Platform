@@ -1,8 +1,7 @@
-import { useState, type FormEvent, type ChangeEvent, useEffect } from "react";
+import { supabase } from "../supabaseClient";
+import { useState, type FormEvent, type ChangeEvent, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useRequest } from "../hooks/useRequests";
-import { useMessages } from "../hooks/useMessages";
 import { AppLayout } from "../components/layout/AppLayout";
 import { StatusBadge, PriorityBadge } from "../components/ui/Badge";
 import { MessageThread } from "../components/requests/MessageThread";
@@ -13,9 +12,9 @@ import {
   STATUS_DESCRIPTIONS,
   CATEGORY_LABELS,
 } from "../utils/statusLabels";
-import { updateRequestStatus } from "../api/requests";
 
 function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -30,14 +29,25 @@ export function RequestDetailPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { request, isLoading, error, reload, updateStatus } = useRequest(id ?? "");
-  const { messages, isLoading: messagesLoading, error: messagesError, send, isSending } = useMessages(id ?? "");
 
+  // Request State
+  const [request, setRequest] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Messages State
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [messagesError, setMessagesError] = useState("");
+
+  // UI Actions State
   const [reply, setReply] = useState("");
   const [replyError, setReplyError] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(!!(location.state as { success?: boolean })?.success);
   const [isReopening, setIsReopening] = useState(false);
 
+  // Clear success message after 5 seconds
   useEffect(() => {
     if (showSuccess) {
       const timer = setTimeout(() => setShowSuccess(false), 5000);
@@ -45,8 +55,70 @@ export function RequestDetailPage() {
     }
   }, [showSuccess]);
 
+  // Fetch Data from Supabase
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setMessagesLoading(true);
+    
+    try {
+      // 1. Fetch Request Details
+      const { data: reqData, error: reqError } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (reqError) throw reqError;
+
+      // Map to camelCase for UI compatibility
+      setRequest({
+        ...reqData,
+        customerId: reqData.customer_id,
+        assignedAgentId: reqData.assigned_agent_id,
+        createdAt: reqData.created_at,
+        updatedAt: reqData.updated_at,
+        resolvedAt: reqData.resolved_at,
+      });
+
+      // 2. Fetch Messages
+      const { data: msgData, error: msgError } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("request_id", id)
+        .order("created_at", { ascending: true });
+
+      if (msgError) throw msgError;
+
+      // Map to camelCase for MessageThread component
+      setMessages(
+        msgData.map((m) => ({
+          ...m,
+          requestId: m.request_id,
+          authorId: m.author_id,
+          authorName: m.author_name,
+          authorRole: m.author_role,
+          isInternal: m.is_internal,
+          createdAt: m.created_at,
+        }))
+      );
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to load request details.");
+      setMessagesError("Failed to load messages.");
+    } finally {
+      setIsLoading(false);
+      setMessagesLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const canReply = request && !["resolved", "closed"].includes(request.status);
 
+  // Handle Sending a New Message
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!reply.trim()) {
@@ -57,24 +129,65 @@ export function RequestDetailPage() {
       setReplyError("Message must be at least 5 characters.");
       return;
     }
+    
     setReplyError("");
+    setIsSending(true);
+    
     try {
-      await send({ content: reply.trim() }, user!.id, user!.name);
+      // Insert new message
+      const { error: insertError } = await supabase.from("messages").insert([
+        {
+          request_id: id,
+          author_id: user?.id,
+          author_name: user?.name,
+          author_role: user?.role,
+          content: reply.trim(),
+          is_internal: false, // Customers always send public messages
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      if (insertError) throw insertError;
       setReply("");
+
+      // Update status if currently 'waiting_for_customer'
       if (request?.status === "waiting_for_customer") {
-        await updateStatus("in_progress");
+        await supabase
+          .from("requests")
+          .update({
+            status: "in_progress",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
       }
-    } catch {
+
+      // Reload data to show the new message
+      await loadData();
+    } catch (err) {
+      console.error(err);
       setReplyError("Failed to send your message. Please try again.");
+    } finally {
+      setIsSending(false);
     }
   }
 
+  // Handle Reopening the Request
   async function handleReopen() {
     setIsReopening(true);
     try {
-      await updateRequestStatus(id!, "in_progress");
-      reload();
-    } catch {
+      const { error: updateError } = await supabase
+        .from("requests")
+        .update({
+          status: "in_progress",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+      
+      await loadData();
+    } catch (err) {
+      console.error(err);
       setReplyError("Failed to reopen the request. Please try again.");
     } finally {
       setIsReopening(false);
@@ -82,10 +195,11 @@ export function RequestDetailPage() {
   }
 
   if (isLoading) return <AppLayout><PageSpinner /></AppLayout>;
+  
   if (error || !request) {
     return (
       <AppLayout>
-        <ErrorAlert message={error ?? "Request not found."} />
+        <ErrorAlert message={error || "Request not found."} />
         <div className="mt-4">
           <Link to="/dashboard" className="btn-secondary">Back to Dashboard</Link>
         </div>
@@ -93,6 +207,7 @@ export function RequestDetailPage() {
     );
   }
 
+  // Ownership Protection
   if (request.customerId !== user?.id) {
     navigate("/dashboard");
     return null;
@@ -120,7 +235,7 @@ export function RequestDetailPage() {
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-sm font-semibold text-slate-400">{request.reference}</span>
             <span className="text-slate-200">·</span>
-            <span className="text-sm text-slate-400">{CATEGORY_LABELS[request.category]}</span>
+            <span className="text-sm text-slate-400">{CATEGORY_LABELS[request.category as keyof typeof CATEGORY_LABELS]}</span>
           </div>
           <h1 className="page-title truncate">{request.title}</h1>
         </div>
@@ -136,7 +251,7 @@ export function RequestDetailPage() {
               {messagesLoading && (
                 <div className="flex justify-center py-8"><Spinner /></div>
               )}
-              {messagesError && <ErrorAlert message={messagesError} onRetry={reload} />}
+              {messagesError && <ErrorAlert message={messagesError} onRetry={loadData} />}
               {!messagesLoading && !messagesError && (
                 <MessageThread messages={messages} currentUserId={user!.id} />
               )}
@@ -216,7 +331,7 @@ export function RequestDetailPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Status</p>
                 <StatusBadge status={request.status} />
                 <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">
-                  {STATUS_DESCRIPTIONS[request.status]}
+                  {STATUS_DESCRIPTIONS[request.status as keyof typeof STATUS_DESCRIPTIONS]}
                 </p>
               </div>
               <div className="h-px bg-slate-100" />

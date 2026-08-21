@@ -121,6 +121,21 @@
       "user_id": "u1",
       "customer_id": "u1",
       "id": "4oTr5TN"
+    },
+    {
+      "title": "kep kd kcs l;ks ;ksd",
+      "description": "kjksd lmds lms lmls lm lwe",
+      "category": "general",
+      "priority": "medium",
+      "status": "open",
+      "reference": "REQ-77239",
+      "createdAt": "2026-08-19T12:46:54.856Z",
+      "updatedAt": "2026-08-19T12:46:54.856Z",
+      "customerId": "u1",
+      "userId": "u1",
+      "user_id": "u1",
+      "customer_id": "u1",
+      "id": "nZdsVEH"
     }
   ],
   "messages": [

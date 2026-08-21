@@ -10,7 +10,7 @@ const middlewares = jsonServer.defaults({ noCors: true });
 app.db = router.db;
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:4200'],
+  origin: true,
   credentials: true,
 }));
 

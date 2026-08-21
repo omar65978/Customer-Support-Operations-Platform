@@ -1,14 +1,59 @@
+import { supabase } from "../supabaseClient";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useRequests } from "../hooks/useRequests";
 import { AppLayout } from "../components/layout/AppLayout";
 import { RequestList } from "../components/requests/RequestList";
 import { PageSpinner } from "../components/ui/Spinner";
 import { ErrorAlert } from "../components/ui/ErrorAlert";
+import type { SupportRequest } from "../types";
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const { requests, isLoading, error, reload } = useRequests(user?.id ?? "");
+  const [requests, setRequests] = useState<SupportRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchRequests() {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const { data, error: supabaseError } = await supabase
+        .from("requests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
+      const formattedRequests: SupportRequest[] = (data || []).map((req: any) => ({
+        id: req.id,
+        reference: req.reference,
+        customerId: req.customer_id,
+        assignedAgentId: req.assigned_agent_id,
+        title: req.title,
+        description: req.description,
+        category: req.category,
+        priority: req.priority,
+        status: req.status,
+        createdAt: req.created_at,
+        updatedAt: req.updated_at,
+        resolvedAt: req.resolved_at,
+      }));
+
+      setRequests(formattedRequests);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load requests from Supabase. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
 
   const openCount = requests.filter((r) => r.status === "open").length;
   const activeCount = requests.filter((r) => r.status === "in_progress").length;
@@ -52,7 +97,7 @@ export function DashboardPage() {
       )}
 
       {isLoading && <PageSpinner />}
-      {error && <ErrorAlert message={error} onRetry={reload} />}
+      {error && <ErrorAlert message={error} onRetry={fetchRequests} />}
       {!isLoading && !error && <RequestList requests={requests} />}
     </AppLayout>
   );
