@@ -4,7 +4,9 @@ A full-stack customer support platform with two connected frontend applications 
 
 ### 🚀 Live Demos
 [![Customer Portal Demo](https://img.shields.io/badge/Live-Customer%20Portal%20(React)-blue?style=for-the-badge&logo=react)](https://customer-support-operations-platfor-taupe.vercel.app/)
+
 [![Agent Workspace Demo](https://img.shields.io/badge/Live-Agent%20Workspace%20(Angular)-red?style=for-the-badge&logo=angular)](https://customer-support-operations-platfor-murex.vercel.app/)
+
 A full-stack customer support platform with two connected frontend applications backed by a shared REST API.
 
 | App | Technology | Port | Purpose |
