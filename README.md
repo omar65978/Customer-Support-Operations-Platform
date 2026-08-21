@@ -15,11 +15,11 @@ A full-stack customer support platform with two connected frontend applications 
   <br/><br/>
 
   <a href="https://customer-support-operations-platfor-murex.vercel.app/">
-    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Live%20Demo-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Support Workspace Demo" width="420" />
+    <img src="https://img.shields.io/badge/%20Support%20Workspace%20%28Angular%29-Live%20Demo-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Support Workspace Demo" width="420" />
   </a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="./support-workspace">
-    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Support Workspace Code" width="420" />
+    <img src="https://img.shields.io/badge/%20Support%20Workspace%20%28Angular%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Support Workspace Code" width="420" />
   </a>
 </p>A full-stack customer support platform with two connected frontend applications backed by a shared REST API.
 
