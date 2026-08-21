@@ -4,7 +4,6 @@ A full-stack customer support platform with two connected frontend applications 
 
 ### 🚀 Live Demos & Source Code
 
-<br>
   <a href="https://customer-support-operations-platfor-taupe.vercel.app/">
     <img src="https://img.shields.io/badge/Customer%20Portal%20%28React%29-Live%20Demo-007ACC?style=for-the-badge&logo=react&logoColor=white" alt="Customer Portal Demo" width="400" />
   </a>
