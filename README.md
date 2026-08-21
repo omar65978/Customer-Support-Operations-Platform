@@ -5,21 +5,21 @@ A full-stack customer support platform with two connected frontend applications 
 ### 🚀 Live Demos & Source Code
 
   <a href="https://customer-support-operations-platfor-taupe.vercel.app/">
-    <img src="https://img.shields.io/badge/Customer%20Portal%20%28React%29-Live%20Demo-007ACC?style=for-the-badge&logo=react&logoColor=white" alt="Customer Portal Demo" width="400" />
+    <img src="https://img.shields.io/badge/Customer%20Portal%20%28React%29-Live%20Demo-007ACC?style=for-the-badge&logo=react&logoColor=white" alt="Customer Portal Demo" width="430" />
   </a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="./customer-portal">
-    <img src="https://img.shields.io/badge/Customer%20Portal%20%28React%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Customer Portal Code" width="400" />
+    <img src="https://img.shields.io/badge/Customer%20Portal%20%28React%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Customer Portal Code" width="430" />
   </a>
   
   <br/><br/>
 
   <a href="https://customer-support-operations-platfor-murex.vercel.app/">
-    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Live%20Demo-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Support Workspace Demo" width="400" />
+    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Live%20Demo-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Support Workspace Demo" width="430" />
   </a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="./support-workspace">
-    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Support Workspace Code" width="400" />
+    <img src="https://img.shields.io/badge/Agent%20Support%20Workspace%20%28Angular%29-Source%20Code-24292e?style=for-the-badge&logo=github&logoColor=white" alt="Support Workspace Code" width="430" />
   </a>
 </p>A full-stack customer support platform with two connected frontend applications backed by a shared REST API.
 
