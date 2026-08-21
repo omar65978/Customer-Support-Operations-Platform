@@ -1,5 +1,11 @@
 # Customer Support Operations Platform
 
+A full-stack customer support platform with two connected frontend applications backed by Supabase.
+
+### 🚀 Live Demos
+👉 **[Open Customer Portal (React)](https://customer-support-operations-platfor-taupe.vercel.app/)**  
+👉 **[Open Agent Support Workspace (Angular)](https://customer-support-operations-platfor-murex.vercel.app/)**
+
 A full-stack customer support platform with two connected frontend applications backed by a shared REST API.
 
 | App | Technology | Port | Purpose |
