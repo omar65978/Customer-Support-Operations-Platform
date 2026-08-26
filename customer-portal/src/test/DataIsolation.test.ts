@@ -79,11 +79,11 @@ describe('Customer data isolation', () => {
       },
     });
 
-    await sendMessage('r1', { content: 'My reply' }, 'u1', 'Alice');
+    await sendMessage('r1', { content: 'My reply' });
 
-    expect(mockClient.post).toHaveBeenCalledWith('/messages', expect.objectContaining({
+    expect(mockClient.post).toHaveBeenCalledWith('/requests/r1/messages', expect.objectContaining({
       isInternal: false,
-      authorRole: 'customer',
+      content: 'My reply',
     }));
   });
 

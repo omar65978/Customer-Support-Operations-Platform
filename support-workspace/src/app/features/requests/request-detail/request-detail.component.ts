@@ -613,10 +613,8 @@ export class RequestDetailComponent implements OnInit {
     }
     this.isSending = true;
     const content = this.replyControl.value.trim();
-    const { id, name, role } = this.currentUser!;
     this.messagesService.sendMessage(
-      this.request!.id, content, id, name,
-      role as 'agent' | 'manager', isInternal
+      this.request!.id, content, isInternal
     ).subscribe({
       next: (msg) => {
         this.messages = [...this.messages, msg];

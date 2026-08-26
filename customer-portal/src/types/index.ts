@@ -46,6 +46,20 @@ export interface Message {
   content: string;
   isInternal: boolean;
   createdAt: string;
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  id: string;
+  requestId: string;
+  uploadedBy: string;
+  uploaderName: string;
+  uploaderRole: UserRole;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
 }
 
 export interface NewRequestPayload {

@@ -23,7 +23,7 @@ export function useRequests(customerId: string) {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await fetchMyRequests(customerId, f, p, PAGE_SIZE);
+        const result = await fetchMyRequests(f, p, PAGE_SIZE);
         setRequests(result.data);
         setTotal(result.total);
       } catch {

@@ -36,8 +36,8 @@ describe('MessagesService', () => {
   });
 
   it('sendMessage posts with isInternal=false for customer-visible reply', () => {
-    service.sendMessage('r1', 'Hello customer', 'u3', 'Sarah Chen', 'agent', false).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/messages`);
+    service.sendMessage('r1', 'Hello customer', false).subscribe();
+    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1/messages`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body.isInternal).toBeFalse();
     expect(req.request.body.content).toBe('Hello customer');
@@ -45,30 +45,9 @@ describe('MessagesService', () => {
   });
 
   it('sendMessage posts with isInternal=true for internal note', () => {
-    service.sendMessage('r1', 'Internal team note', 'u3', 'Sarah Chen', 'agent', true).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/messages`);
+    service.sendMessage('r1', 'Internal team note', true).subscribe();
+    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1/messages`);
     expect(req.request.body.isInternal).toBeTrue();
-    req.flush({});
-  });
-
-  it('sendMessage includes requestId, authorId, authorName, authorRole', () => {
-    service.sendMessage('r1', 'Test content', 'u3', 'Sarah Chen', 'agent', false).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/messages`);
-    expect(req.request.body).toEqual(jasmine.objectContaining({
-      requestId: 'r1',
-      authorId: 'u3',
-      authorName: 'Sarah Chen',
-      authorRole: 'agent',
-    }));
-    req.flush({});
-  });
-
-  it('internal notes use isInternal=true — distinguishing from customer messages', () => {
-    service.sendMessage('r1', 'Billing table locked', 'u5', 'Maria', 'manager', true).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/messages`);
-    const body = req.request.body;
-    expect(body.isInternal).toBeTrue();
-    expect(body.authorRole).toBe('manager');
     req.flush({});
   });
 });

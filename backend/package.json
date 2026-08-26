@@ -8,8 +8,10 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "json-server": "0.17.4",
     "json-server-auth": "2.1.0",
-    "cors": "^2.8.5"
+    "multer": "^2.2.0",
+    "uuid": "^14.0.2"
   }
 }

@@ -10,17 +10,10 @@ export async function fetchMessages(requestId: string): Promise<Message[]> {
 export async function sendMessage(
   requestId: string,
   payload: NewMessagePayload,
-  authorId: string,
-  authorName: string
 ): Promise<Message> {
-  const response = await apiClient.post<Message>("/messages", {
-    requestId,
-    authorId,
-    authorName,
-    authorRole: "customer",
+  const response = await apiClient.post<Message>(`/requests/${requestId}/messages`, {
     content: payload.content,
     isInternal: false,
-    createdAt: new Date().toISOString(),
   });
   return response.data;
 }

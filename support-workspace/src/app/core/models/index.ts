@@ -40,6 +40,20 @@ export interface Message {
   createdAt: string;
 }
 
+export interface Attachment {
+  id: string;
+  requestId: string;
+  uploadedBy: string;
+  uploaderName: string;
+  uploaderRole: UserRole;
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+
 export interface LoginCredentials {
   email: string;
   password: string;

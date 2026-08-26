@@ -15,15 +15,13 @@ export interface RequestPage {
 }
 
 export async function fetchMyRequests(
-  customerId: string,
   filters: RequestFilters = {},
   page = 1,
   pageSize = 5
 ): Promise<RequestPage> {
   const params = new URLSearchParams();
-  params.set("customerId", customerId);
   params.set("_page", String(page));
-  params.set("_per_page", String(pageSize));
+  params.set("_limit", String(pageSize));
   params.set("_sort", "updatedAt");
   params.set("_order", "desc");
   if (filters.status) params.set("status", filters.status);
@@ -31,26 +29,10 @@ export async function fetchMyRequests(
   if (filters.category) params.set("category", filters.category);
 
   const response = await apiClient.get(`/requests?${params.toString()}`);
+  const total = parseInt(response.headers["x-total-count"] || "0", 10);
+  const data: SupportRequest[] = Array.isArray(response.data) ? response.data : [];
 
-  const raw = response.data;
-  const allMatchingItems: SupportRequest[] = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw.data)
-    ? raw.data
-    : [];
-
-  if (Array.isArray(raw)) {
-    const start = (page - 1) * pageSize;
-    const sliced = raw.slice(start, start + pageSize);
-    return { data: sliced, total: raw.length, page, pageSize };
-  }
-
-  return {
-    data: allMatchingItems,
-    total: raw.items ?? raw.total ?? allMatchingItems.length,
-    page: raw.page ?? page,
-    pageSize: raw.pageSize ?? pageSize,
-  };
+  return { data, total, page, pageSize };
 }
 
 export async function fetchRequest(id: string): Promise<SupportRequest> {

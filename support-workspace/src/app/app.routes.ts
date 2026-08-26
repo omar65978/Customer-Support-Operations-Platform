@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { managerGuard } from './core/guards/manager.guard';
 
 export const routes: Routes = [
   {
@@ -34,6 +35,14 @@ export const routes: Routes = [
           import('./features/requests/request-detail/request-detail.component').then(
             (m) => m.RequestDetailComponent
           ),
+      },
+      {
+        path: 'manager',
+        loadComponent: () =>
+          import('./features/manager/manager-dashboard.component').then(
+            (m) => m.ManagerDashboardComponent
+          ),
+        canActivate: [managerGuard],
       },
     ],
   },

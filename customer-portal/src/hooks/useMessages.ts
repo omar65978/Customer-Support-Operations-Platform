@@ -26,10 +26,10 @@ export function useMessages(requestId: string) {
   }, [requestId, load]);
 
   const send = useCallback(
-    async (payload: NewMessagePayload, authorId: string, authorName: string) => {
+    async (payload: NewMessagePayload) => {
       setIsSending(true);
       try {
-        const newMsg = await sendMessage(requestId, payload, authorId, authorName);
+        const newMsg = await sendMessage(requestId, payload);
         setMessages((prev) => [...prev, newMsg]);
         return newMsg;
       } finally {

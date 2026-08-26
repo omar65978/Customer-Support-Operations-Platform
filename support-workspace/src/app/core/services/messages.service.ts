@@ -7,28 +7,20 @@ import { environment } from '../../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class MessagesService {
   private http = inject(HttpClient);
-  private base = `${environment.apiUrl}/messages`;
+  private base = environment.apiUrl;
 
   getForRequest(requestId: string): Observable<Message[]> {
-    return this.http.get<Message[]>(`${this.base}?requestId=${requestId}`);
+    return this.http.get<Message[]>(`${this.base}/messages?requestId=${requestId}`);
   }
 
   sendMessage(
     requestId: string,
     content: string,
-    authorId: string,
-    authorName: string,
-    authorRole: 'agent' | 'manager',
     isInternal: boolean
   ): Observable<Message> {
-    return this.http.post<Message>(this.base, {
-      requestId,
-      authorId,
-      authorName,
-      authorRole,
+    return this.http.post<Message>(`${this.base}/requests/${requestId}/messages`, {
       content,
       isInternal,
-      createdAt: new Date().toISOString(),
     });
   }
 }

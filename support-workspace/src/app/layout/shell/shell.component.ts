@@ -66,6 +66,16 @@ import { map, shareReplay } from 'rxjs';
             <mat-icon class="nav-icon">inbox</mat-icon>
             <span class="nav-label">All Requests</span>
           </a>
+          <a
+            *ngIf="(currentUser$ | async)?.role === 'manager'"
+            class="nav-item"
+            routerLink="/manager"
+            routerLinkActive="nav-item--active"
+            id="nav-manager"
+          >
+            <mat-icon class="nav-icon">bar_chart</mat-icon>
+            <span class="nav-label">Overview</span>
+          </a>
         </nav>
 
         <div class="sidenav-footer">

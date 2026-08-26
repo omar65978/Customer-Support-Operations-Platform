@@ -34,7 +34,7 @@ describe('RequestsService', () => {
       r.url === `${environment.apiUrl}/requests` && !r.params.has('assignedAgentId')
     );
     expect(req.request.method).toBe('GET');
-    req.flush([]);
+    req.flush([], { headers: { 'x-total-count': '0' } });
   });
 
   it('getAll for agent adds assignedAgentId filter', () => {
@@ -43,7 +43,7 @@ describe('RequestsService', () => {
       r.url === `${environment.apiUrl}/requests` && r.params.get('assignedAgentId') === 'u3'
     );
     expect(req.request.method).toBe('GET');
-    req.flush([]);
+    req.flush([], { headers: { 'x-total-count': '0' } });
   });
 
   it('getAll applies status filter as query parameter', () => {
@@ -52,7 +52,36 @@ describe('RequestsService', () => {
       r.url === `${environment.apiUrl}/requests` && r.params.get('status') === 'open'
     );
     expect(req.request.method).toBe('GET');
-    req.flush([]);
+    req.flush([], { headers: { 'x-total-count': '0' } });
+  });
+
+  it('getAll uses _q param for search query', () => {
+    service.getAll({ q: 'billing' }, undefined, true).subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url === `${environment.apiUrl}/requests` && r.params.get('_q') === 'billing'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush([], { headers: { 'x-total-count': '0' } });
+  });
+
+  it('getAll reads total from x-total-count header', (done) => {
+    service.getAll({}, undefined, true).subscribe((page) => {
+      expect(page.total).toBe(7);
+      done();
+    });
+    const req = httpMock.expectOne((r) => r.url === `${environment.apiUrl}/requests`);
+    req.flush([], { headers: { 'x-total-count': '7' } });
+  });
+
+  it('getAll passes pagination params', () => {
+    service.getAll({}, undefined, true, 2, 25).subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url === `${environment.apiUrl}/requests` &&
+      r.params.get('_page') === '2' &&
+      r.params.get('_limit') === '25'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush([], { headers: { 'x-total-count': '0' } });
   });
 
   it('updateStatus sends PATCH with resolved timestamp when status is resolved', () => {

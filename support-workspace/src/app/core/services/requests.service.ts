@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import type { SupportRequest, RequestStatus, User } from '../models';
 import { environment } from '../../../environments/environment';
@@ -33,17 +33,17 @@ export class RequestsService {
     if (filters.status) params = params.set('status', filters.status);
     if (filters.priority) params = params.set('priority', filters.priority);
     if (filters.category) params = params.set('category', filters.category);
-    if (filters.q) params = params.set('title_like', filters.q);
+    if (filters.q) params = params.set('_q', filters.q);
 
     params = params.set('_sort', 'updatedAt');
     params = params.set('_order', 'desc');
+    params = params.set('_page', String(page));
+    params = params.set('_limit', String(pageSize));
 
-    return this.http.get<SupportRequest[]>(this.base, { params }).pipe(
-      map((allItems) => {
-        const items = Array.isArray(allItems) ? allItems : [];
-        const total = items.length;
-        const start = (page - 1) * pageSize;
-        const data = items.slice(start, start + pageSize);
+    return this.http.get<SupportRequest[]>(this.base, { params, observe: 'response' }).pipe(
+      map((response: HttpResponse<SupportRequest[]>) => {
+        const total = parseInt(response.headers.get('x-total-count') || '0', 10);
+        const data = response.body ?? [];
         return { data, total, page, pageSize };
       })
     );

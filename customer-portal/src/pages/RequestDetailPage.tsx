@@ -91,7 +91,7 @@ export function RequestDetailPage() {
     setReplyError("");
     setIsSending(true);
     try {
-      const msg = await sendMessage(id!, { content: reply.trim() }, user!.id, user!.name);
+      const msg = await sendMessage(id!, { content: reply.trim() });
       setMessages((prev) => [...prev, msg]);
       setReply("");
       if (request?.status === "waiting_for_customer") {
