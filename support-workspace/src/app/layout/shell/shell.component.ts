@@ -47,36 +47,34 @@ import { map, shareReplay } from 'rxjs';
           </div>
         </div>
 
-        <mat-divider></mat-divider>
-
-        <mat-nav-list class="nav-list">
+        <nav class="nav-list" aria-label="Main navigation">
           <a
-            mat-list-item
+            class="nav-item"
             routerLink="/dashboard"
-            routerLinkActive="active-link"
+            routerLinkActive="nav-item--active"
             id="nav-dashboard"
           >
-            <mat-icon matListItemIcon>dashboard</mat-icon>
-            <span matListItemTitle>Dashboard</span>
+            <mat-icon class="nav-icon">dashboard</mat-icon>
+            <span class="nav-label">Dashboard</span>
           </a>
           <a
-            mat-list-item
+            class="nav-item"
             routerLink="/requests"
-            routerLinkActive="active-link"
+            routerLinkActive="nav-item--active"
             id="nav-requests"
           >
-            <mat-icon matListItemIcon>inbox</mat-icon>
-            <span matListItemTitle>All Requests</span>
+            <mat-icon class="nav-icon">inbox</mat-icon>
+            <span class="nav-label">All Requests</span>
           </a>
-        </mat-nav-list>
+        </nav>
 
         <div class="sidenav-footer">
-          <mat-divider></mat-divider>
+          <div class="footer-divider"></div>
           <div class="user-info" *ngIf="currentUser$ | async as user">
-            <div class="user-avatar">{{ user.name.charAt(0).toUpperCase() }}</div>
+            <div class="user-avatar" aria-hidden="true">{{ user.name.charAt(0).toUpperCase() }}</div>
             <div class="user-details">
               <span class="user-name">{{ user.name }}</span>
-              <mat-chip class="role-chip role-{{ user.role }}">{{ user.role }}</mat-chip>
+              <span class="role-badge role-badge--{{ user.role }}">{{ user.role }}</span>
             </div>
           </div>
         </div>
@@ -121,153 +119,260 @@ import { map, shareReplay } from 'rxjs';
     </mat-sidenav-container>
   `,
   styles: [`
+    :host {
+      --sidebar-bg: #0f1b2d;
+      --sidebar-border: rgba(255, 255, 255, 0.08);
+      --nav-text: #b8c5d6;
+      --nav-text-hover: #ffffff;
+      --nav-icon: #7a90a8;
+      --nav-icon-hover: #ffffff;
+      --nav-hover-bg: rgba(255, 255, 255, 0.07);
+      --nav-active-bg: #1d4ed8;
+      --nav-active-text: #ffffff;
+      --nav-active-icon: #ffffff;
+      --nav-active-shadow: 0 2px 8px rgba(29, 78, 216, 0.45);
+      --nav-focus-ring: 2px solid #60a5fa;
+      --nav-focus-ring-offset: 2px;
+      --brand-name-color: #f0f4f8;
+      --brand-sub-color: #7a90a8;
+      --brand-logo-bg: #1d4ed8;
+      --brand-logo-shadow: 0 2px 8px rgba(29, 78, 216, 0.4);
+      --avatar-bg: #1d4ed8;
+      --user-name-color: #e2eaf3;
+      --footer-bg: rgba(0, 0, 0, 0.15);
+    }
+
     .shell-container {
       height: 100vh;
     }
 
     .sidenav {
-      width: 260px;
-      background: #1e293b;
-      border-right: 1px solid #334155;
+      width: 256px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
     }
 
     .sidenav-brand {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 20px 16px;
-      border-bottom: 1px solid #334155;
+      padding: 22px 18px 20px;
+      border-bottom: 1px solid var(--sidebar-border);
+      flex-shrink: 0;
     }
 
     .brand-logo {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
-      border-radius: 10px;
+      width: 38px;
+      height: 38px;
+      background: var(--brand-logo-bg);
+      border-radius: 9px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+      flex-shrink: 0;
+      box-shadow: var(--brand-logo-shadow);
     }
 
     .brand-logo mat-icon {
-      color: white;
-      font-size: 22px;
+      color: #ffffff;
+      font-size: 21px;
+      width: 21px;
+      height: 21px;
     }
 
     .brand-text {
       display: flex;
       flex-direction: column;
-    }
-
-    .brand-name {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      line-height: 1.2;
-    }
-
-    .brand-sub {
-      font-size: 0.68rem;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .nav-list {
-      padding: 12px 8px;
-    }
-
-    mat-nav-list a {
-      color: #cbd5e1 !important;
-      border-radius: 8px !important;
-      margin-bottom: 2px;
-      font-weight: 500;
-      transition: background 0.15s, color 0.15s;
-    }
-
-    mat-nav-list a:hover {
-      background: #334155 !important;
-      color: #f1f5f9 !important;
-    }
-
-    mat-nav-list a.active-link {
-      background: #4f46e5 !important;
-      color: #ffffff !important;
-      box-shadow: 0 2px 6px rgba(79,70,229,0.35);
-    }
-
-    mat-nav-list mat-icon {
-      color: inherit !important;
-    }
-
-    .sidenav-footer {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      border-top: 1px solid #334155;
-    }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-    }
-
-    .user-avatar {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 700;
-      font-size: 0.875rem;
-      flex-shrink: 0;
-    }
-
-    .user-details {
-      display: flex;
-      flex-direction: column;
+      gap: 1px;
       min-width: 0;
     }
 
-    .user-name {
+    .brand-name {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--brand-name-color);
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: var(--brand-sub-color);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .nav-list {
+      flex: 1;
+      padding: 10px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--nav-text);
       font-size: 0.875rem;
-      font-weight: 600;
-      color: #f1f5f9;
+      font-weight: 500;
+      line-height: 1;
+      transition: background-color 0.14s ease, color 0.14s ease;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: var(--nav-hover-bg);
+      color: var(--nav-text-hover);
+    }
+
+    .nav-item:hover .nav-icon {
+      color: var(--nav-icon-hover);
+    }
+
+    .nav-item:focus-visible {
+      outline: var(--nav-focus-ring);
+      outline-offset: var(--nav-focus-ring-offset);
+      color: var(--nav-text-hover);
+    }
+
+    .nav-item--active {
+      background: var(--nav-active-bg);
+      color: var(--nav-active-text);
+      box-shadow: var(--nav-active-shadow);
+    }
+
+    .nav-item--active .nav-icon {
+      color: var(--nav-active-icon);
+    }
+
+    .nav-item--active:hover {
+      background: var(--nav-active-bg);
+      color: var(--nav-active-text);
+    }
+
+    .nav-icon {
+      color: var(--nav-icon);
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      transition: color 0.14s ease;
+    }
+
+    .nav-item--active .nav-icon {
+      color: var(--nav-active-icon);
+    }
+
+    .nav-label {
+      flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .role-chip {
-      font-size: 0.65rem !important;
-      height: 18px !important;
-      padding: 0 8px !important;
-      min-height: unset !important;
-      margin-top: 2px;
+    .sidenav-footer {
+      flex-shrink: 0;
     }
 
-    .role-agent { background: rgba(99,102,241,0.25) !important; color: #a5b4fc !important; }
-    .role-manager { background: rgba(168,85,247,0.25) !important; color: #d8b4fe !important; }
+    .footer-divider {
+      height: 1px;
+      background: var(--sidebar-border);
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 14px 16px;
+      background: var(--footer-bg);
+    }
+
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+      background: var(--avatar-bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.8125rem;
+      flex-shrink: 0;
+      letter-spacing: 0;
+    }
+
+    .user-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--user-name-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      line-height: 1.4;
+      width: fit-content;
+    }
+
+    .role-badge--agent {
+      background: #1e3a5f;
+      color: #93c5fd;
+      border: 1px solid #2563eb;
+    }
+
+    .role-badge--manager {
+      background: #2d1f4e;
+      color: #c4b5fd;
+      border: 1px solid #7c3aed;
+    }
+
+    .role-badge--customer {
+      background: #1a3a2a;
+      color: #86efac;
+      border: 1px solid #16a34a;
+    }
 
     .top-toolbar {
-      background: white !important;
+      background: #ffffff !important;
       border-bottom: 1px solid #e2e8f0;
       color: #0f172a !important;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
       height: 64px;
     }
 
-    .toolbar-spacer { flex: 1; }
+    .toolbar-spacer {
+      flex: 1;
+    }
 
     .main-content {
-      background: #f8fafc;
+      background: #f1f5f9;
     }
 
     .page-content {
@@ -294,7 +399,13 @@ import { map, shareReplay } from 'rxjs';
     }
 
     @media (max-width: 599px) {
-      .page-content { padding: 16px; }
+      .page-content {
+        padding: 16px;
+      }
+
+      .sidenav {
+        width: 240px;
+      }
     }
   `],
 })
