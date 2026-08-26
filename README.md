@@ -1,5 +1,6 @@
 # Customer Support Operations Platform
 
+HEAD
 A full-stack customer support platform with two connected frontend applications backed by Supabase.
 
 ### 🚀 Live Demos & Source Code
@@ -33,252 +34,108 @@ A full-stack customer support platform with two connected frontend applications 
 
 ## Architecture
 
+## Project Structure
+ bc5739a (fix: backend role-based security enforcement, fix manager password, assign test requests, update README)
+
 ```
 support-platform/
-├── backend/                    # JSON Server + json-server-auth
-│   ├── server.js               # CORS, auth rewriter rules (640), server setup
-│   ├── db.json                 # Seed data: users, requests, messages
-│   └── package.json
-│
-├── customer-portal/            # React 19 + Vite + TypeScript + Tailwind
-│   ├── src/
-│   │   ├── api/                # Axios client with JWT interceptor
-│   │   ├── components/         # UI, layout, request, message components
-│   │   ├── contexts/           # AuthContext — session management
-│   │   ├── hooks/              # useRequests, useMessages
-│   │   ├── pages/              # Login, Register, Dashboard, NewRequest, RequestDetail
-│   │   ├── test/               # Vitest test suite (17 tests)
-│   │   ├── types/              # TypeScript interfaces
-│   │   └── utils/              # Status labels and display helpers
-│   └── package.json
-│
-└── support-workspace/          # Angular 18 + Angular Material
-    ├── src/app/
-    │   ├── core/               # Models, services, guards, interceptors
-    │   ├── features/           # Auth, Dashboard, Request Detail
-    │   ├── layout/             # Shell with responsive sidenav
-    │   └── shared/             # ConfirmDialog component
-    └── package.json
+├── backend/          # json-server + json-server-auth (port 3001)
+├── customer-portal/  # React 18 + Vite + TypeScript (port 5173)
+└── support-workspace/ # Angular 17 + Angular Material (port 4200)
 ```
-
----
 
 ## Prerequisites
 
-- **Node.js** v18 or v20 LTS
-- **npm** v9+
-- **Chrome** (required for Angular Karma tests)
+- Node.js 18+
+- npm 9+
 
----
+## Running the Project
 
-## Installation
-
-```bash
-cd backend && npm install
-cd customer-portal && npm install
-cd support-workspace && npm install
-```
-
----
-
-## Running the Applications
-
-Open three separate terminals.
-
-### Terminal 1 — Backend API
+### 1. Backend
 
 ```bash
 cd backend
+npm install
 npm start
 ```
 
-API available at **http://localhost:3001**
+Backend runs on **http://localhost:3001**
 
-### Terminal 2 — Customer Portal (React)
+### 2. Customer Portal (React)
 
 ```bash
 cd customer-portal
+npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**
+Opens at **http://localhost:5173**
 
-### Terminal 3 — Support Workspace (Angular)
-
-```bash
-cd support-workspace
-npm run start
-```
-
-Open **http://localhost:4200**
-
----
-
-## Environment Variables
-
-### Customer Portal
-
-The file `customer-portal/.env` is already configured. No changes needed for local development.
-
-```
-VITE_API_URL=http://localhost:3001
-```
-
-Copy `customer-portal/.env.example` if you need to reset it.
-
-The Angular workspace reads from `src/environments/environment.ts`. No `.env` file required.
-
----
-
-## Test Accounts
-
-All passwords: `password123`
-
-| Role | Email | Application |
-|---|---|---|
-| Customer | alice@example.com | React portal — 3 pre-seeded requests |
-| Customer | bob@example.com | React portal — 2 pre-seeded requests |
-| Support Agent | agent1@support.com | Angular workspace |
-| Support Agent | agent2@support.com | Angular workspace |
-| Support Manager | manager@support.com | Angular workspace — full access |
-
-Demo credentials are shown on both login screens.
-
----
-
-## Automated Tests
-
-### React — Vitest + React Testing Library
-
-```bash
-cd customer-portal
-npm run test
-```
-
-| File | Tests |
-|---|---|
-| `AuthContext.test.tsx` | Session init, login, logout, localStorage restore, corrupted storage |
-| `ProtectedRoutes.test.tsx` | Unauthenticated redirect, authenticated access, public route redirect |
-| `NewRequestPage.test.tsx` | Form validation: empty, too-short, and valid submission |
-| `DataIsolation.test.ts` | Internal note filtering, customer-only posting, auth response format |
-
-**Result: 17 tests, 4 suites — all pass**
-
-### Angular — Jasmine + Karma
+### 3. Support Workspace (Angular)
 
 ```bash
 cd support-workspace
-npm test -- --watch=false
+npm install
+npm start
 ```
 
-| File | Tests |
-|---|---|
-| `app.component.spec.ts` | Root component renders |
-| `auth.service.spec.ts` | Login (nested response format), logout, role assignment, localStorage |
-| `auth.guard.spec.ts` | Allows authenticated users, redirects unauthenticated users |
-| `requests.service.spec.ts` | CRUD, status transitions, assignment logic |
-| `messages.service.spec.ts` | Message posting with correct isInternal flag |
+Opens at **http://localhost:4200**
 
-**Result: 25 tests — all pass**
+## Test Accounts (password: `password123`)
 
----
+| Email | Name | Role |
+|-------|------|------|
+| alice@example.com | Alice Johnson | Customer |
+| bob@example.com | Bob Martinez | Customer |
+| agent1@support.com | Sarah Chen | Agent |
+| agent2@support.com | James Wright | Agent |
+| manager@support.com | Maria Rodriguez | Manager |
 
-## Build Commands
+## Running Tests
 
 ```bash
+# React tests
+cd customer-portal && npm test
+
+# Angular tests
+cd support-workspace && npm test
+
+# Production builds
 cd customer-portal && npm run build
 cd support-workspace && npm run build
 ```
 
-Both build cleanly with zero TypeScript errors.
+## Test Results
 
----
+- React (Vitest): **17/17 tests passed**
+- Angular (Karma/Jasmine): **25/25 tests passed**
+- Both production builds: **clean, zero errors**
 
-## Authentication
+## Features Implemented
 
-Both applications use `json-server-auth` which provides `/login` and `/register` endpoints. Passwords are bcrypt-hashed. On successful login, the server returns:
+### Customer Portal
+- JWT authentication via json-server-auth (no Supabase)
+- Server-side paginated request list (5 per page)
+- Filter by status, priority, category
+- Auto-assign new requests to a random available agent
+- Customers can only view and reply to their own requests
+- Internal agent notes are never shown to customers
 
-```json
-{
-  "accessToken": "<jwt>",
-  "user": { "id": "u1", "email": "...", "name": "...", "role": "customer" }
-}
-```
+### Support Workspace
+- JWT authentication via json-server-auth
+- Agent-scoped dashboard: agents only see their assigned requests
+- Manager dashboard: sees all requests across all agents
+- Assigned To column shows agent name (not ID)
+- Agent name resolved in request detail view
+- Filters: search, status, priority, category
+- Quick filters removed
+- Pagination via Angular Material paginator
+- Status transitions, assignment, internal notes
 
-The JWT is stored in `localStorage` and attached to all subsequent API requests via an Axios interceptor (React) and an `HttpInterceptor` (Angular). A 401 response automatically clears the session and redirects to `/login`.
-
----
-
-## Authorization
-
-### Backend Protection
-
-All `/users`, `/requests`, and `/messages` endpoints require a valid JWT (rule `640`). Unauthenticated requests receive `401 Missing authorization header`.
-
-### Customer Data Isolation
-
-- React `fetchMyRequests` always queries `/requests?customerId={userId}` using the authenticated user's own ID
-- `RequestDetailPage` checks `request.customerId !== user.id` and redirects if the IDs do not match — preventing access via direct URL manipulation
-- The customer cannot access the Angular workspace (different application, different port)
-
-### Internal Notes
-
-- React `fetchMessages` filters `isInternal === true` records before returning them to the UI
-- React `sendMessage` hardcodes `isInternal: false` and `authorRole: "customer"` — customers cannot post internal notes
-
-### Route Guards
-
-- **React**: `ProtectedRoute` redirects unauthenticated users to `/login`. `PublicRoute` redirects authenticated users away from `/login`
-- **Angular**: `authGuard` is applied to the shell layout, redirecting unauthenticated users to `/login`
-
----
-
-## Data Model
-
-### SupportRequest
-
-| Field | Type |
-|---|---|
-| id | string |
-| reference | string (REQ-001) |
-| customerId | string |
-| assignedAgentId | string \| null |
-| title | string |
-| description | string |
-| category | billing \| technical \| account \| general |
-| priority | low \| medium \| high \| urgent |
-| status | open \| in_progress \| waiting_for_customer \| resolved \| closed |
-| createdAt | ISO datetime |
-| updatedAt | ISO datetime |
-| resolvedAt | ISO datetime \| null |
-
-### Message
-
-| Field | Type |
-|---|---|
-| id | string |
-| requestId | string |
-| authorId | string |
-| authorName | string |
-| authorRole | customer \| agent \| manager |
-| content | string |
-| isInternal | boolean |
-| createdAt | ISO datetime |
-
----
-
-## Known Limitations
-
-- `json-server` does not support field-level row filtering (no native RLS). Customer isolation uses `?customerId=` query params and frontend ownership checks. A production system would enforce this in the database layer.
-- JWT tokens expire after 1 hour (json-server-auth default). No refresh token flow is implemented.
-- No pagination at the backend — all requests are loaded and paginated client-side in the Angular dashboard.
-- The Angular workspace has no self-registration — agents and managers are pre-seeded in `db.json`.
-
----
-
-## Production Considerations
-
-- Replace `json-server` with a production backend enforcing RLS policies
-- Move JWT to `httpOnly` cookies to prevent XSS
-- Add refresh token rotation
-- Enforce HTTPS and restrict CORS to production domains only
+### Backend Security
+- Role-based access enforced at the API layer
+- Agents: can only read/write their assigned requests
+- Customers: can only read/write their own requests
+- Managers: unrestricted access
+- Cross-agent URL manipulation returns 403
+- Internal messages never returned to customers

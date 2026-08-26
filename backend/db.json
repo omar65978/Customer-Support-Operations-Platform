@@ -31,7 +31,7 @@
     {
       "id": "u5",
       "email": "manager@support.com",
-      "password": "$2a$10$R7uUKlL4RL8Vy6x.BqRu0e5H8QzUkOiuJH.FQaF.l5k1X1WGdxvyS",
+      "password": "$2a$10$BGkQnliGJh2lEHy.Qb4DZ.guBGb4TM/bs2pVog7OaFk.Ig46iC/zq",
       "name": "Maria Rodriguez",
       "role": "manager"
     }
@@ -117,9 +117,8 @@
       "createdAt": "2026-08-18T20:26:25.175Z",
       "updatedAt": "2026-08-18T20:26:25.175Z",
       "customerId": "u1",
-      "userId": "u1",
-      "user_id": "u1",
-      "customer_id": "u1",
+      "assignedAgentId": "u3",
+      "resolvedAt": null,
       "id": "4oTr5TN"
     },
     {
@@ -132,9 +131,8 @@
       "createdAt": "2026-08-19T12:46:54.856Z",
       "updatedAt": "2026-08-19T12:46:54.856Z",
       "customerId": "u1",
-      "userId": "u1",
-      "user_id": "u1",
-      "customer_id": "u1",
+      "assignedAgentId": "u3",
+      "resolvedAt": null,
       "id": "nZdsVEH"
     }
   ],
