@@ -1,134 +1,85 @@
-import { Injectable } from '@angular/core';
-import { Observable, from } from 'rxjs';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { SupportRequest, RequestStatus } from '../models';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
+import type { SupportRequest, RequestStatus, User } from '../models';
+import { environment } from '../../../environments/environment';
 
 export interface RequestFilters {
   status?: RequestStatus | '';
   priority?: string;
   category?: string;
-  assignedAgentId?: string;
   q?: string;
+}
+
+export interface RequestPage {
+  data: SupportRequest[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class RequestsService {
-  private supabase: SupabaseClient;
+  private http = inject(HttpClient);
+  private base = `${environment.apiUrl}/requests`;
 
-  constructor() {
-    const supabaseUrl = 'https://iaukydzbcdmglqajllei.supabase.co';
-    const supabaseKey = 'sb_publishable_AqWrf6GufnWU-Esd3MkLvQ_xoGFCUlL';
-    this.supabase = createClient(supabaseUrl, supabaseKey);
-  }
+  getAll(filters: RequestFilters = {}, agentId?: string, isManager = false, page = 1, pageSize = 10): Observable<RequestPage> {
+    let params = new HttpParams();
 
-  private mapToModel(data: any): SupportRequest {
-    return {
-      ...data,
-      customerId: data.customer_id,
-      assignedAgentId: data.assigned_agent_id,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      resolvedAt: data.resolved_at,
-    };
-  }
+    if (!isManager && agentId) {
+      params = params.set('assignedAgentId', agentId);
+    }
 
-  getAll(filters: RequestFilters = {}): Observable<SupportRequest[]> {
-    return from(
-      (async () => {
-        let query = this.supabase.from('requests').select('*');
+    if (filters.status) params = params.set('status', filters.status);
+    if (filters.priority) params = params.set('priority', filters.priority);
+    if (filters.category) params = params.set('category', filters.category);
+    if (filters.q) params = params.set('title_like', filters.q);
 
-        if (filters.status) query = query.eq('status', filters.status);
-        if (filters.priority) query = query.eq('priority', filters.priority);
-        if (filters.category) query = query.eq('category', filters.category);
-        if (filters.assignedAgentId) query = query.eq('assigned_agent_id', filters.assignedAgentId);
-        if (filters.q) query = query.ilike('title', `%${filters.q}%`);
+    params = params.set('_sort', 'updatedAt');
+    params = params.set('_order', 'desc');
 
-        const { data, error } = await query.order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        return data.map((item) => this.mapToModel(item));
-      })()
+    return this.http.get<SupportRequest[]>(this.base, { params }).pipe(
+      map((allItems) => {
+        const items = Array.isArray(allItems) ? allItems : [];
+        const total = items.length;
+        const start = (page - 1) * pageSize;
+        const data = items.slice(start, start + pageSize);
+        return { data, total, page, pageSize };
+      })
     );
   }
 
   getOne(id: string): Observable<SupportRequest> {
-    return from(
-      (async () => {
-        const { data, error } = await this.supabase
-          .from('requests')
-          .select('*')
-          .eq('id', id)
-          .single();
-          
-        if (error) throw error;
-        return this.mapToModel(data);
-      })()
-    );
+    return this.http.get<SupportRequest>(`${this.base}/${id}`);
   }
 
   updateStatus(id: string, status: RequestStatus): Observable<SupportRequest> {
-    return from(
-      (async () => {
-        const patch = {
-          status,
-          updated_at: new Date().toISOString(),
-          resolved_at: status === 'resolved' ? new Date().toISOString() : null,
-        };
-        
-        const { data, error } = await this.supabase
-          .from('requests')
-          .update(patch)
-          .eq('id', id)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        return this.mapToModel(data);
-      })()
-    );
+    const patch: Partial<SupportRequest> & { resolvedAt?: string | null } = {
+      status,
+      updatedAt: new Date().toISOString(),
+      resolvedAt: status === 'resolved' ? new Date().toISOString() : null,
+    };
+    return this.http.patch<SupportRequest>(`${this.base}/${id}`, patch);
   }
 
   assign(id: string, agentId: string | null): Observable<SupportRequest> {
-    return from(
-      (async () => {
-        const patch = {
-          assigned_agent_id: agentId,
-          status: agentId ? 'in_progress' : 'open',
-          updated_at: new Date().toISOString(),
-        };
-        
-        const { data, error } = await this.supabase
-          .from('requests')
-          .update(patch)
-          .eq('id', id)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        return this.mapToModel(data);
-      })()
-    );
+    return this.http.patch<SupportRequest>(`${this.base}/${id}`, {
+      assignedAgentId: agentId,
+      status: agentId ? 'in_progress' : 'open',
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   close(id: string): Observable<SupportRequest> {
-    return from(
-      (async () => {
-        const patch = {
-          status: 'closed',
-          updated_at: new Date().toISOString(),
-        };
-        
-        const { data, error } = await this.supabase
-          .from('requests')
-          .update(patch)
-          .eq('id', id)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        return this.mapToModel(data);
-      })()
+    return this.http.patch<SupportRequest>(`${this.base}/${id}`, {
+      status: 'closed',
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  getAllAgentsForLookup(): Observable<User[]> {
+    return this.http.get<User[]>(`${environment.apiUrl}/users?role=agent`).pipe(
+      map((users) => (Array.isArray(users) ? users.filter((u) => u.role === 'agent') : []))
     );
   }
 }

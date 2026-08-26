@@ -1,4 +1,3 @@
-import { supabase } from "../supabaseClient";
 import { useState, type FormEvent, type ChangeEvent, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -8,10 +7,10 @@ import { MessageThread } from "../components/requests/MessageThread";
 import { PageSpinner } from "../components/ui/Spinner";
 import { ErrorAlert } from "../components/ui/ErrorAlert";
 import { Spinner } from "../components/ui/Spinner";
-import {
-  STATUS_DESCRIPTIONS,
-  CATEGORY_LABELS,
-} from "../utils/statusLabels";
+import { STATUS_DESCRIPTIONS, CATEGORY_LABELS } from "../utils/statusLabels";
+import { fetchRequest, updateRequestStatus } from "../api/requests";
+import { fetchMessages, sendMessage } from "../api/messages";
+import type { SupportRequest, Message } from "../types";
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -30,24 +29,20 @@ export function RequestDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Request State
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<SupportRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Messages State
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [messagesError, setMessagesError] = useState("");
 
-  // UI Actions State
   const [reply, setReply] = useState("");
   const [replyError, setReplyError] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(!!(location.state as { success?: boolean })?.success);
   const [isReopening, setIsReopening] = useState(false);
 
-  // Clear success message after 5 seconds
   useEffect(() => {
     if (showSuccess) {
       const timer = setTimeout(() => setShowSuccess(false), 5000);
@@ -55,56 +50,21 @@ export function RequestDetailPage() {
     }
   }, [showSuccess]);
 
-  // Fetch Data from Supabase
   const loadData = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
     setMessagesLoading(true);
-    
+    setError("");
+    setMessagesError("");
     try {
-      // 1. Fetch Request Details
-      const { data: reqData, error: reqError } = await supabase
-        .from("requests")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (reqError) throw reqError;
-
-      // Map to camelCase for UI compatibility
-      setRequest({
-        ...reqData,
-        customerId: reqData.customer_id,
-        assignedAgentId: reqData.assigned_agent_id,
-        createdAt: reqData.created_at,
-        updatedAt: reqData.updated_at,
-        resolvedAt: reqData.resolved_at,
-      });
-
-      // 2. Fetch Messages
-      const { data: msgData, error: msgError } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("request_id", id)
-        .order("created_at", { ascending: true });
-
-      if (msgError) throw msgError;
-
-      // Map to camelCase for MessageThread component
-      setMessages(
-        msgData.map((m) => ({
-          ...m,
-          requestId: m.request_id,
-          authorId: m.author_id,
-          authorName: m.author_name,
-          authorRole: m.author_role,
-          isInternal: m.is_internal,
-          createdAt: m.created_at,
-        }))
-      );
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to load request details.");
+      const [reqData, msgData] = await Promise.all([
+        fetchRequest(id),
+        fetchMessages(id),
+      ]);
+      setRequest(reqData);
+      setMessages(msgData.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+    } catch {
+      setError("Failed to load request details.");
       setMessagesError("Failed to load messages.");
     } finally {
       setIsLoading(false);
@@ -118,7 +78,6 @@ export function RequestDetailPage() {
 
   const canReply = request && !["resolved", "closed"].includes(request.status);
 
-  // Handle Sending a New Message
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     if (!reply.trim()) {
@@ -129,65 +88,30 @@ export function RequestDetailPage() {
       setReplyError("Message must be at least 5 characters.");
       return;
     }
-    
     setReplyError("");
     setIsSending(true);
-    
     try {
-      // Insert new message
-      const { error: insertError } = await supabase.from("messages").insert([
-        {
-          request_id: id,
-          author_id: user?.id,
-          author_name: user?.name,
-          author_role: user?.role,
-          content: reply.trim(),
-          is_internal: false, // Customers always send public messages
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (insertError) throw insertError;
+      const msg = await sendMessage(id!, { content: reply.trim() }, user!.id, user!.name);
+      setMessages((prev) => [...prev, msg]);
       setReply("");
-
-      // Update status if currently 'waiting_for_customer'
       if (request?.status === "waiting_for_customer") {
-        await supabase
-          .from("requests")
-          .update({
-            status: "in_progress",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", id);
+        const updated = await updateRequestStatus(id!, "in_progress");
+        setRequest(updated);
       }
-
-      // Reload data to show the new message
-      await loadData();
-    } catch (err) {
-      console.error(err);
+    } catch {
       setReplyError("Failed to send your message. Please try again.");
     } finally {
       setIsSending(false);
     }
   }
 
-  // Handle Reopening the Request
   async function handleReopen() {
+    if (!id) return;
     setIsReopening(true);
     try {
-      const { error: updateError } = await supabase
-        .from("requests")
-        .update({
-          status: "in_progress",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      if (updateError) throw updateError;
-      
-      await loadData();
-    } catch (err) {
-      console.error(err);
+      const updated = await updateRequestStatus(id, "in_progress");
+      setRequest(updated);
+    } catch {
       setReplyError("Failed to reopen the request. Please try again.");
     } finally {
       setIsReopening(false);
@@ -195,7 +119,7 @@ export function RequestDetailPage() {
   }
 
   if (isLoading) return <AppLayout><PageSpinner /></AppLayout>;
-  
+
   if (error || !request) {
     return (
       <AppLayout>
@@ -207,7 +131,6 @@ export function RequestDetailPage() {
     );
   }
 
-  // Ownership Protection
   if (request.customerId !== user?.id) {
     navigate("/dashboard");
     return null;

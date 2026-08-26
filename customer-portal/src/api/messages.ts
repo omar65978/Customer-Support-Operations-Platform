@@ -3,7 +3,8 @@ import type { Message, NewMessagePayload } from "../types";
 
 export async function fetchMessages(requestId: string): Promise<Message[]> {
   const response = await apiClient.get<Message[]>(`/messages?requestId=${requestId}`);
-  return response.data.filter((m) => !m.isInternal);
+  const data = Array.isArray(response.data) ? response.data : [];
+  return data.filter((m) => !m.isInternal);
 }
 
 export async function sendMessage(

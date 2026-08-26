@@ -191,7 +191,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Assigned To</span>
-                  <span class="detail-value" *ngIf="request.assignedAgentId">{{ request.assignedAgentId }}</span>
+                  <span class="detail-value" *ngIf="request.assignedAgentId">{{ agentName(request.assignedAgentId) }}</span>
                   <span class="unassigned-text" *ngIf="!request.assignedAgentId">Unassigned</span>
                 </div>
               </mat-card-content>
@@ -543,6 +543,7 @@ export class RequestDetailComponent implements OnInit {
   request: SupportRequest | null = null;
   messages: Message[] = [];
   agents: User[] = [];
+  agentMap: Record<string, string> = {};
   availableTransitions: { value: RequestStatus; label: string }[] = [];
 
   isLoading = true;
@@ -564,11 +565,13 @@ export class RequestDetailComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loadRequest(id);
     this.loadMessages(id);
-    if (this.currentUser?.role === 'manager') {
-      this.authService.getAllAgents().subscribe({
-        next: (users) => { this.agents = users.filter((u) => u.role === 'agent' || u.role === 'manager'); },
-      });
-    }
+    this.authService.getAllAgents().subscribe({
+      next: (users) => {
+        this.agents = users;
+        this.agentMap = {};
+        users.forEach((u) => { this.agentMap[u.id] = u.name; });
+      },
+    });
   }
 
   private computeTransitions(): void {
@@ -696,6 +699,10 @@ export class RequestDetailComponent implements OnInit {
         error: () => this.snackBar.open('Failed to close request', 'Dismiss', { duration: 4000 }),
       });
     });
+  }
+
+  agentName(agentId: string): string {
+    return this.agentMap[agentId] ?? agentId;
   }
 
   statusLabel(s: RequestStatus): string { return STATUS_LABELS[s] ?? s; }

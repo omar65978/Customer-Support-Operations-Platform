@@ -5,7 +5,6 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSortModule, Sort } from '@angular/material/sort';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -14,16 +13,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatBadgeModule } from '@angular/material/badge';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { RequestsService, type RequestFilters } from '../../core/services/requests.service';
 import { AuthService } from '../../core/services/auth.service';
-import type { SupportRequest, RequestStatus, RequestPriority, RequestCategory } from '../../core/models';
-import {
-  STATUS_LABELS,
-  PRIORITY_LABELS,
-  CATEGORY_LABELS,
-} from '../../core/models';
+import type { SupportRequest, RequestStatus, RequestPriority, RequestCategory, User } from '../../core/models';
+import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -35,7 +29,6 @@ import {
     MatTableModule,
     MatPaginatorModule,
     MatSortModule,
-    MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -44,13 +37,14 @@ import {
     MatCardModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
-    MatBadgeModule,
   ],
   template: `
     <div class="dashboard-header">
       <div>
         <h1 class="page-title">Support Dashboard</h1>
-        <p class="page-subtitle">Manage and track all customer support requests</p>
+        <p class="page-subtitle">
+          {{ currentUser?.role === 'manager' ? 'All requests across all agents' : 'Requests assigned to you' }}
+        </p>
       </div>
     </div>
 
@@ -98,7 +92,7 @@ import {
         <div class="filters-row">
           <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search requests</mat-label>
-            <input matInput [formControl]="searchControl" id="search-input" placeholder="Search by title, reference…" />
+            <input matInput [formControl]="searchControl" id="search-input" placeholder="Search by title…" />
             <mat-icon matSuffix>search</mat-icon>
           </mat-form-field>
 
@@ -130,45 +124,6 @@ import {
             <mat-icon>clear</mat-icon>
             Clear
           </button>
-        </div>
-
-        <div class="quick-chips">
-          <span class="chips-label">Quick filters:</span>
-          <mat-chip-set>
-            <mat-chip
-              id="chip-unassigned"
-              [class.active-chip]="quickFilter === 'unassigned'"
-              (click)="setQuickFilter('unassigned')"
-            >
-              <mat-icon matChipAvatar>person_off</mat-icon>
-              Unassigned
-            </mat-chip>
-            <mat-chip
-              id="chip-urgent"
-              [class.active-chip]="quickFilter === 'urgent'"
-              (click)="setQuickFilter('urgent')"
-            >
-              <mat-icon matChipAvatar>priority_high</mat-icon>
-              Urgent
-            </mat-chip>
-            <mat-chip
-              id="chip-waiting"
-              [class.active-chip]="quickFilter === 'waiting'"
-              (click)="setQuickFilter('waiting')"
-            >
-              <mat-icon matChipAvatar>hourglass_empty</mat-icon>
-              Waiting for Customer
-            </mat-chip>
-            <mat-chip
-              id="chip-mine"
-              [class.active-chip]="quickFilter === 'mine'"
-              (click)="setQuickFilter('mine')"
-              *ngIf="currentUser"
-            >
-              <mat-icon matChipAvatar>person</mat-icon>
-              My Requests
-            </mat-chip>
-          </mat-chip-set>
         </div>
       </mat-card-content>
     </mat-card>
@@ -231,7 +186,7 @@ import {
             <th mat-header-cell *matHeaderCellDef>Assigned To</th>
             <td mat-cell *matCellDef="let r">
               <span class="unassigned-text" *ngIf="!r.assignedAgentId">Unassigned</span>
-              <span class="assigned-text" *ngIf="r.assignedAgentId">{{ r.assignedAgentId }}</span>
+              <span class="assigned-text" *ngIf="r.assignedAgentId">{{ agentName(r.assignedAgentId) }}</span>
             </td>
           </ng-container>
 
@@ -353,29 +308,10 @@ import {
       gap: 12px;
       flex-wrap: wrap;
       align-items: center;
-      margin-bottom: 12px;
     }
 
     .search-field { flex: 2; min-width: 200px; }
     .filter-field { flex: 1; min-width: 140px; }
-
-    .quick-chips {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .chips-label {
-      font-size: 0.8rem;
-      color: #64748b;
-      font-weight: 500;
-    }
-
-    .active-chip {
-      background: #3b82f6 !important;
-      color: white !important;
-    }
 
     .table-card {
       border-radius: 16px !important;
@@ -431,7 +367,7 @@ import {
     .priority-urgent { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 
     .unassigned-text { color: #94a3b8; font-size: 0.8rem; font-style: italic; }
-    .assigned-text { color: #334155; font-size: 0.8rem; }
+    .assigned-text { color: #334155; font-size: 0.875rem; font-weight: 500; }
     .date-cell { color: #64748b; font-size: 0.8rem; }
 
     .loading-container, .error-container, .empty-container {
@@ -463,9 +399,9 @@ export class DashboardComponent implements OnInit {
   allRequests: SupportRequest[] = [];
   filteredRequests: SupportRequest[] = [];
   pagedRequests: SupportRequest[] = [];
+  agentMap: Record<string, string> = {};
   isLoading = true;
   error = '';
-  quickFilter = '';
 
   searchControl = new FormControl('');
   statusControl = new FormControl<RequestStatus | ''>('');
@@ -483,10 +419,11 @@ export class DashboardComponent implements OnInit {
 
   get currentUser() { return this.authService.currentUser; }
   get hasActiveFilters(): boolean {
-    return !!(this.searchControl.value || this.statusControl.value || this.priorityControl.value || this.categoryControl.value || this.quickFilter);
+    return !!(this.searchControl.value || this.statusControl.value || this.priorityControl.value || this.categoryControl.value);
   }
 
   ngOnInit(): void {
+    this.loadAgents();
     this.loadRequests();
     this.searchControl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.applyFilters());
     this.statusControl.valueChanges.subscribe(() => this.applyFilters());
@@ -494,12 +431,25 @@ export class DashboardComponent implements OnInit {
     this.categoryControl.valueChanges.subscribe(() => this.applyFilters());
   }
 
+  loadAgents(): void {
+    this.requestsService.getAllAgentsForLookup().subscribe({
+      next: (agents) => {
+        this.agentMap = {};
+        agents.forEach((a: User) => { this.agentMap[a.id] = a.name; });
+      },
+    });
+  }
+
   loadRequests(): void {
     this.isLoading = true;
     this.error = '';
-    this.requestsService.getAll().subscribe({
-      next: (data) => {
-        this.allRequests = data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const user = this.currentUser;
+    const isManager = user?.role === 'manager';
+    const agentId = user?.role === 'agent' ? user.id : undefined;
+
+    this.requestsService.getAll({}, agentId, isManager).subscribe({
+      next: (page) => {
+        this.allRequests = page.data;
         this.applyFilters();
         this.isLoading = false;
       },
@@ -526,27 +476,15 @@ export class DashboardComponent implements OnInit {
     const category = this.categoryControl.value ?? '';
 
     this.filteredRequests = this.allRequests.filter((r) => {
-      const matchSearch = !search || r.title.toLowerCase().includes(search) || r.reference.toLowerCase().includes(search) || r.description.toLowerCase().includes(search);
+      const matchSearch = !search || r.title.toLowerCase().includes(search) || r.reference.toLowerCase().includes(search);
       const matchStatus = !status || r.status === status;
       const matchPriority = !priority || r.priority === priority;
       const matchCategory = !category || r.category === category;
-
-      let matchQuick = true;
-      if (this.quickFilter === 'unassigned') matchQuick = !r.assignedAgentId;
-      if (this.quickFilter === 'urgent') matchQuick = r.priority === 'urgent';
-      if (this.quickFilter === 'waiting') matchQuick = r.status === 'waiting_for_customer';
-      if (this.quickFilter === 'mine') matchQuick = r.assignedAgentId === this.currentUser?.id;
-
-      return matchSearch && matchStatus && matchPriority && matchCategory && matchQuick;
+      return matchSearch && matchStatus && matchPriority && matchCategory;
     });
 
     this.pageIndex = 0;
     this.updatePaged();
-  }
-
-  setQuickFilter(key: string): void {
-    this.quickFilter = this.quickFilter === key ? '' : key;
-    this.applyFilters();
   }
 
   clearFilters(): void {
@@ -554,7 +492,6 @@ export class DashboardComponent implements OnInit {
     this.statusControl.setValue('');
     this.priorityControl.setValue('');
     this.categoryControl.setValue('');
-    this.quickFilter = '';
     this.applyFilters();
   }
 
@@ -580,6 +517,10 @@ export class DashboardComponent implements OnInit {
   updatePaged(): void {
     const start = this.pageIndex * this.pageSize;
     this.pagedRequests = this.filteredRequests.slice(start, start + this.pageSize);
+  }
+
+  agentName(agentId: string): string {
+    return this.agentMap[agentId] ?? agentId;
   }
 
   statusLabel(s: RequestStatus): string { return STATUS_LABELS[s] ?? s; }

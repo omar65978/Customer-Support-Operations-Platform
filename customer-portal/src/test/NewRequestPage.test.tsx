@@ -7,10 +7,11 @@ import { NewRequestPage } from '../pages/NewRequestPage';
 import * as requestsApi from '../api/requests';
 
 vi.mock('../api/requests', () => ({
-  fetchMyRequests: vi.fn().mockResolvedValue([]),
+  fetchMyRequests: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 5 }),
   fetchRequest: vi.fn(),
   createRequest: vi.fn(),
   updateRequestStatus: vi.fn(),
+  fetchAgents: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -32,7 +33,7 @@ describe('NewRequestPage form validation', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.resetAllMocks();
-    vi.mocked(requestsApi.fetchMyRequests).mockResolvedValue([]);
+    vi.mocked(requestsApi.fetchMyRequests).mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 5 });
   });
 
   it('shows validation error when title is empty on submit', async () => {

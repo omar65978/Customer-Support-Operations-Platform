@@ -1,9 +1,9 @@
-import { supabase } from "../supabaseClient";
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { AppLayout } from "../components/layout/AppLayout";
 import { Spinner } from "../components/ui/Spinner";
+import { createRequest } from "../api/requests";
 import type { RequestCategory, RequestPriority } from "../types";
 
 const CATEGORIES: { value: RequestCategory; label: string; icon: string }[] = [
@@ -13,17 +13,16 @@ const CATEGORIES: { value: RequestCategory; label: string; icon: string }[] = [
   { value: "general", label: "General", icon: "💬" },
 ];
 
-const PRIORITIES: { value: RequestPriority; label: string; description: string; color: string }[] = [
-  { value: "low", label: "Low", description: "Not urgent, no immediate impact", color: "border-gray-200 peer-checked:border-gray-500 peer-checked:bg-gray-50" },
-  { value: "medium", label: "Medium", description: "Somewhat affects my workflow", color: "border-sky-200 peer-checked:border-sky-500 peer-checked:bg-sky-50" },
-  { value: "high", label: "High", description: "Significant impact on my work", color: "border-orange-200 peer-checked:border-orange-500 peer-checked:bg-orange-50" },
-  { value: "urgent", label: "Urgent", description: "Critical — completely blocked", color: "border-red-200 peer-checked:border-red-500 peer-checked:bg-red-50" },
+const PRIORITIES: { value: RequestPriority; label: string; description: string }[] = [
+  { value: "low", label: "Low", description: "Not urgent, no immediate impact" },
+  { value: "medium", label: "Medium", description: "Somewhat affects my workflow" },
+  { value: "high", label: "High", description: "Significant impact on my work" },
+  { value: "urgent", label: "Urgent", description: "Critical — completely blocked" },
 ];
 
 interface FormErrors {
   title?: string;
   description?: string;
-  category?: string;
   general?: string;
 }
 
@@ -43,15 +42,9 @@ export function NewRequestPage() {
     if (!title.trim()) errs.title = "Please provide a title for your request.";
     else if (title.trim().length < 5) errs.title = "Title must be at least 5 characters.";
     else if (title.trim().length > 100) errs.title = "Title must be under 100 characters.";
-    
     if (!description.trim()) errs.description = "Please describe your issue.";
     else if (description.trim().length < 20) errs.description = "Description must be at least 20 characters.";
-    
-    // التحقق من وجود تسجيل الدخول
-    if (!user) {
-      errs.general = "You must be logged in to submit a request.";
-    }
-
+    if (!user) errs.general = "You must be logged in to submit a request.";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -59,38 +52,16 @@ export function NewRequestPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-    
     setIsSubmitting(true);
     setErrors({});
-    
     try {
-      const randomRef = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
-
-      const { data, error } = await supabase
-        .from('requests')
-        .insert([
-          {
-            title: title.trim(),
-            description: description.trim(),
-            category,
-            priority,
-            status: "open",
-            reference: randomRef,
-            customer_id: user?.id, // استخدام معرّف المستخدم الفعلي
-            created_at: new Date().toISOString() // اختيارياً لضمان التوقيت في حال عدم ضبط القيمة الافتراضية بـ Supabase
-          }
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      navigate(`/requests/${data.id}`, { state: { success: true } });
-    } catch (err: any) {
-      console.error("Supabase submission error:", err);
-      setErrors({ general: err?.message || "Failed to submit your request to Supabase. Please try again." });
+      const req = await createRequest(
+        { title: title.trim(), description: description.trim(), category, priority },
+        user!.id
+      );
+      navigate(`/requests/${req.id}`, { state: { success: true } });
+    } catch {
+      setErrors({ general: "Failed to submit your request. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
@@ -157,7 +128,6 @@ export function NewRequestPage() {
                 </button>
               ))}
             </div>
-            {errors.category && <p className="error-text">{errors.category}</p>}
           </div>
 
           <div>
@@ -203,9 +173,7 @@ export function NewRequestPage() {
               placeholder="Describe your issue in detail."
               className={`input-field resize-none ${errors.description ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
             />
-            <div className="flex justify-between">
-              {errors.description && <p className="error-text">{errors.description}</p>}
-            </div>
+            {errors.description && <p className="error-text">{errors.description}</p>}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

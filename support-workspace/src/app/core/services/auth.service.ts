@@ -1,14 +1,22 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, from, map, tap } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import type { AuthUser, LoginCredentials, User } from '../models';
-import { createClient } from '@supabase/supabase-js';
+import { environment } from '../../../environments/environment';
 
-const SUPABASE_URL = "https://iaukydzbcdmglqajllei.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_AqWrf6GufnWU-Esd3MkLvQ_xoGFCUlL";
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+interface LoginResponse {
+  accessToken: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: AuthUser['role'];
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private http = inject(HttpClient);
   private currentUserSubject = new BehaviorSubject<AuthUser | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
 
@@ -37,33 +45,27 @@ export class AuthService {
     return localStorage.getItem('token');
   }
 
-  login(credentials: LoginCredentials): Observable<any> {
-    return from(
-      supabase
-        .from('users')
-        .select('*')
-        .eq('email', credentials.email)
-        .single()
-    ).pipe(
-      map(({ data, error }) => {
-        if (error || !data) {
-          throw new Error('Invalid email or password');
-        }
-        return data;
-      }),
-      tap((data) => {
-        const token = 'mock-supabase-token-' + data.id;
+  login(credentials: LoginCredentials): Observable<AuthUser> {
+    return this.http.post<LoginResponse>(`${environment.apiUrl}/login`, credentials).pipe(
+      tap((res) => {
         const user: AuthUser = {
-          id: data.id,
-          email: data.email,
-          name: data.name,
-          role: data.role as AuthUser['role'],
-          accessToken: token,
+          id: res.user.id,
+          email: res.user.email,
+          name: res.user.name,
+          role: res.user.role,
+          accessToken: res.accessToken,
         };
-        localStorage.setItem('token', token);
+        localStorage.setItem('token', res.accessToken);
         localStorage.setItem('user', JSON.stringify(user));
         this.currentUserSubject.next(user);
-      })
+      }),
+      map((res) => ({
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.name,
+        role: res.user.role,
+        accessToken: res.accessToken,
+      }))
     );
   }
 
@@ -73,16 +75,8 @@ export class AuthService {
   }
 
   getAllAgents(): Observable<User[]> {
-    return from(
-      supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'agent')
-    ).pipe(
-      map(({ data, error }) => {
-        if (error) throw error;
-        return (data || []) as User[];
-      })
+    return this.http.get<User[]>(`${environment.apiUrl}/users?role=agent`).pipe(
+      map((users) => (Array.isArray(users) ? users.filter((u) => u.role === 'agent') : []))
     );
   }
 

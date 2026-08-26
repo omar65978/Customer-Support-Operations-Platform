@@ -1,39 +1,80 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchMyRequests, fetchRequest, createRequest, updateRequestStatus } from "../api/requests";
+import {
+  fetchMyRequests,
+  fetchRequest,
+  createRequest,
+  updateRequestStatus,
+  type RequestFilters,
+} from "../api/requests";
 import type { SupportRequest, NewRequestPayload } from "../types";
 
 export function useRequests(customerId: string) {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<RequestFilters>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const PAGE_SIZE = 5;
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchMyRequests(customerId);
-      setRequests(data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-    } catch {
-      setError("Failed to load your requests. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [customerId]);
-
-  useEffect(() => {
-    if (customerId) load();
-  }, [customerId, load]);
-
-  const create = useCallback(
-    async (payload: NewRequestPayload) => {
-      const newReq = await createRequest(payload, customerId);
-      setRequests((prev) => [newReq, ...prev]);
-      return newReq;
+  const load = useCallback(
+    async (p: number, f: RequestFilters) => {
+      if (!customerId) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await fetchMyRequests(customerId, f, p, PAGE_SIZE);
+        setRequests(result.data);
+        setTotal(result.total);
+      } catch {
+        setError("Failed to load your requests. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
     },
     [customerId]
   );
 
-  return { requests, isLoading, error, reload: load, create };
+  useEffect(() => {
+    load(page, filters);
+  }, [page, filters, load]);
+
+  const applyFilters = useCallback(
+    (newFilters: RequestFilters) => {
+      setFilters(newFilters);
+      setPage(1);
+    },
+    []
+  );
+
+  const goToPage = useCallback((p: number) => setPage(p), []);
+
+  const create = useCallback(
+    async (payload: NewRequestPayload) => {
+      const newReq = await createRequest(payload, customerId);
+      load(1, filters);
+      setPage(1);
+      return newReq;
+    },
+    [customerId, filters, load]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  return {
+    requests,
+    total,
+    page,
+    totalPages,
+    pageSize: PAGE_SIZE,
+    filters,
+    isLoading,
+    error,
+    reload: () => load(page, filters),
+    create,
+    applyFilters,
+    goToPage,
+  };
 }
 
 export function useRequest(id: string) {
@@ -42,6 +83,7 @@ export function useRequest(id: string) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!id) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -55,8 +97,8 @@ export function useRequest(id: string) {
   }, [id]);
 
   useEffect(() => {
-    if (id) load();
-  }, [id, load]);
+    load();
+  }, [load]);
 
   const updateStatus = useCallback(
     async (status: SupportRequest["status"]) => {

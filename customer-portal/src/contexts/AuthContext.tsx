@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser } from "../types";
-import { supabase } from "../supabaseClient";
+import { login as apiLogin, register as apiRegister } from "../api/auth";
 import type { LoginCredentials, RegisterPayload } from "../types";
 
 interface AuthContextValue {
@@ -40,53 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", credentials.email)
-      .single();
-
-    if (error || !data) {
-      throw new Error("Invalid email or password");
-    }
-
-    const authUser: AuthUser = {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role,
-      accessToken: "mock-supabase-token-" + data.id,
-    };
-
+    const authUser = await apiLogin(credentials);
     localStorage.setItem("token", authUser.accessToken);
     localStorage.setItem("user", JSON.stringify(authUser));
     setUser(authUser);
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {
-    const newId = crypto.randomUUID();
-    const newUser = {
-      id: newId,
-      email: payload.email,
-      password: payload.password,
-      name: payload.name,
-      role: "customer",
-    };
-
-    const { error } = await supabase.from("users").insert([newUser]);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const authUser: AuthUser = {
-      id: newId,
-      email: payload.email,
-      name: payload.name,
-      role: "customer",
-      accessToken: "mock-supabase-token-" + newId,
-    };
-
+    const authUser = await apiRegister(payload);
     localStorage.setItem("token", authUser.accessToken);
     localStorage.setItem("user", JSON.stringify(authUser));
     setUser(authUser);

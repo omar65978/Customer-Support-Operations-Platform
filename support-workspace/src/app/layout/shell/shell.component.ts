@@ -127,8 +127,8 @@ import { map, shareReplay } from 'rxjs';
 
     .sidenav {
       width: 260px;
-      background: #0f172a;
-      border-right: none;
+      background: #1e293b;
+      border-right: 1px solid #334155;
     }
 
     .sidenav-brand {
@@ -136,16 +136,18 @@ import { map, shareReplay } from 'rxjs';
       align-items: center;
       gap: 12px;
       padding: 20px 16px;
+      border-bottom: 1px solid #334155;
     }
 
     .brand-logo {
       width: 40px;
       height: 40px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 2px 8px rgba(99,102,241,0.4);
     }
 
     .brand-logo mat-icon {
@@ -161,36 +163,38 @@ import { map, shareReplay } from 'rxjs';
     .brand-name {
       font-size: 1rem;
       font-weight: 700;
-      color: white;
+      color: #f1f5f9;
       line-height: 1.2;
     }
 
     .brand-sub {
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.5);
+      font-size: 0.68rem;
+      color: #94a3b8;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
     }
 
     .nav-list {
-      padding: 8px;
+      padding: 12px 8px;
     }
 
     mat-nav-list a {
-      color: rgba(255,255,255,0.7) !important;
-      border-radius: 10px !important;
-      margin-bottom: 4px;
-      transition: all 0.2s;
+      color: #cbd5e1 !important;
+      border-radius: 8px !important;
+      margin-bottom: 2px;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
     }
 
     mat-nav-list a:hover {
-      background: rgba(255,255,255,0.08) !important;
-      color: white !important;
+      background: #334155 !important;
+      color: #f1f5f9 !important;
     }
 
     mat-nav-list a.active-link {
-      background: rgba(59,130,246,0.2) !important;
-      color: #60a5fa !important;
+      background: #4f46e5 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 6px rgba(79,70,229,0.35);
     }
 
     mat-nav-list mat-icon {
@@ -202,19 +206,20 @@ import { map, shareReplay } from 'rxjs';
       bottom: 0;
       left: 0;
       right: 0;
+      border-top: 1px solid #334155;
     }
 
     .user-info {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 16px;
+      padding: 14px 16px;
     }
 
     .user-avatar {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -234,7 +239,7 @@ import { map, shareReplay } from 'rxjs';
     .user-name {
       font-size: 0.875rem;
       font-weight: 600;
-      color: white;
+      color: #f1f5f9;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -248,8 +253,8 @@ import { map, shareReplay } from 'rxjs';
       margin-top: 2px;
     }
 
-    .role-agent { background: rgba(59,130,246,0.2) !important; color: #60a5fa !important; }
-    .role-manager { background: rgba(168,85,247,0.2) !important; color: #c084fc !important; }
+    .role-agent { background: rgba(99,102,241,0.25) !important; color: #a5b4fc !important; }
+    .role-manager { background: rgba(168,85,247,0.25) !important; color: #d8b4fe !important; }
 
     .top-toolbar {
       background: white !important;

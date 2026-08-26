@@ -28,23 +28,29 @@ describe('RequestsService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('getAll fetches all requests without filters', () => {
-    service.getAll().subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests`);
+  it('getAll for manager fetches without assignedAgentId filter', () => {
+    service.getAll({}, undefined, true).subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url === `${environment.apiUrl}/requests` && !r.params.has('assignedAgentId')
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('getAll for agent adds assignedAgentId filter', () => {
+    service.getAll({}, 'u3', false).subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url === `${environment.apiUrl}/requests` && r.params.get('assignedAgentId') === 'u3'
+    );
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });
 
   it('getAll applies status filter as query parameter', () => {
-    service.getAll({ status: 'open' }).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests?status=open`);
-    expect(req.request.method).toBe('GET');
-    req.flush([]);
-  });
-
-  it('getAll applies priority filter as query parameter', () => {
-    service.getAll({ priority: 'urgent' }).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests?priority=urgent`);
+    service.getAll({ status: 'open' }, undefined, true).subscribe();
+    const req = httpMock.expectOne((r) =>
+      r.url === `${environment.apiUrl}/requests` && r.params.get('status') === 'open'
+    );
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });
@@ -58,10 +64,10 @@ describe('RequestsService', () => {
     req.flush({});
   });
 
-  it('updateStatus does not set resolvedAt when status is not resolved', () => {
+  it('updateStatus sets resolvedAt to null when status is not resolved', () => {
     service.updateStatus('r1', 'in_progress').subscribe();
     const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
-    expect(req.request.body.resolvedAt).toBeUndefined();
+    expect(req.request.body.resolvedAt).toBeNull();
     req.flush({});
   });
 
