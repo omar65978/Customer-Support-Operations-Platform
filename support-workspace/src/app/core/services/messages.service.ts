@@ -1,16 +1,19 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import type { Message } from '../models';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class MessagesService {
   private http = inject(HttpClient);
-  private base = environment.apiUrl;
+  private authService = inject(AuthService);
+  private base = `${environment.apiUrl}/messages`;
 
   getForRequest(requestId: string): Observable<Message[]> {
-    return this.http.get<Message[]>(`${this.base}/messages?requestId=${requestId}`);
+    // استخدام صيغة فلتر Supabase الصحيحة واسم العمود بالـ snake_case
+    return this.http.get<Message[]>(`${this.base}?request_id=eq.${requestId}`);
   }
 
   sendMessage(
@@ -18,9 +21,21 @@ export class MessagesService {
     content: string,
     isInternal: boolean
   ): Observable<Message> {
-    return this.http.post<Message>(`${this.base}/requests/${requestId}/messages`, {
+    const user = this.authService.currentUser;
+
+    const payload = {
+      request_id: requestId,
       content,
-      isInternal,
-    });
+      is_internal: isInternal,
+      author_id: user?.id ?? null,
+      author_name: user?.name ?? 'Support User',
+      author_role: user?.role ?? 'agent'
+    };
+
+    return this.http.post<Message[] | Message>(this.base, payload, {
+      headers: { 'Prefer': 'return=representation' }
+    }).pipe(
+      map(res => (Array.isArray(res) ? res[0] : res))
+    );
   }
 }
