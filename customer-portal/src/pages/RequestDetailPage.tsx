@@ -131,11 +131,6 @@ export function RequestDetailPage() {
     );
   }
 
-  if (request.customerId !== user?.id) {
-    navigate("/dashboard");
-    return null;
-  }
-
   return (
     <AppLayout>
       {showSuccess && (
@@ -147,7 +142,11 @@ export function RequestDetailPage() {
 
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={() => navigate("/dashboard")}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("/dashboard");
+          }}
           className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
         >
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -176,7 +175,7 @@ export function RequestDetailPage() {
               )}
               {messagesError && <ErrorAlert message={messagesError} onRetry={loadData} />}
               {!messagesLoading && !messagesError && (
-                <MessageThread messages={messages} currentUserId={user!.id} />
+                <MessageThread messages={messages} currentUserId={user?.id || ""} />
               )}
             </div>
 
@@ -219,6 +218,7 @@ export function RequestDetailPage() {
                     If your issue persists or you need further help, you can reopen this request.
                   </p>
                   <button
+                    type="button"
                     id="reopen-btn"
                     onClick={handleReopen}
                     disabled={isReopening}
