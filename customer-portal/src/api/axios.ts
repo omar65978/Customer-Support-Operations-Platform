@@ -7,27 +7,28 @@ const apiClient = axios.create({
   baseURL: SUPABASE_URL,
   headers: {
     "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
   },
 });
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  
+
   config.headers["apikey"] = SUPABASE_ANON_KEY;
-  
-  if (token) {
+
+  if (token && token.split('.').length === 3) {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
     config.headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
   }
-  
+
   return config;
 });
 
 apiClient.interceptors.response.use(
   (r) => r,
   (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.includes("/login")) {
+    if ((error.response?.status === 401 || error.response?.status === 403) && !window.location.pathname.includes("/login")) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";
