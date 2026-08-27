@@ -20,27 +20,43 @@ export async function fetchMyRequests(
   pageSize = 5
 ): Promise<RequestPage> {
   const params = new URLSearchParams();
-  params.set("_page", String(page));
-  params.set("_limit", String(pageSize));
-  params.set("_sort", "updatedAt");
-  params.set("_order", "desc");
-  if (filters.status) params.set("status", filters.status);
-  if (filters.priority) params.set("priority", filters.priority);
-  if (filters.category) params.set("category", filters.category);
 
-  const response = await apiClient.get(`/requests?${params.toString()}`);
-  const total = parseInt(response.headers["x-total-count"] || "0", 10);
+  params.set("order", "updated_at.desc");
+
+  if (filters.status) params.set("status", `eq.${filters.status}`);
+  if (filters.priority) params.set("priority", `eq.${filters.priority}`);
+  if (filters.category) params.set("category", `eq.${filters.category}`);
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const response = await apiClient.get<SupportRequest[]>(`/requests?${params.toString()}`, {
+    headers: {
+      Prefer: "count=exact",
+      Range: `${from}-${to}`,
+    },
+  });
+
+  const contentRange = response.headers["content-range"];
+  let total = 0;
+  if (contentRange) {
+    const parts = contentRange.split("/");
+    if (parts[1]) total = parseInt(parts[1], 10);
+  } else {
+    total = Array.isArray(response.data) ? response.data.length : 0;
+  }
+
   const data: SupportRequest[] = Array.isArray(response.data) ? response.data : [];
   return { data, total, page, pageSize };
 }
 
 export async function fetchRequest(id: string): Promise<SupportRequest> {
-  const response = await apiClient.get<SupportRequest>(`/requests/${id}`);
-  return response.data;
+  const response = await apiClient.get<SupportRequest[]>(`/requests?id=eq.${id}`);
+  return response.data[0];
 }
 
 export async function fetchAgents(): Promise<User[]> {
-  const response = await apiClient.get<User[]>(`/users?role=agent`);
+  const response = await apiClient.get<User[]>(`/users?role=eq.agent`);
   return Array.isArray(response.data) ? response.data : [];
 }
 
@@ -55,27 +71,43 @@ export async function createRequest(
   const now = new Date().toISOString();
   const reference = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
 
-  const response = await apiClient.post<SupportRequest>("/requests", {
-    ...payload,
-    customerId,
-    assignedAgentId,
-    status: "open",
-    reference,
-    createdAt: now,
-    updatedAt: now,
-    resolvedAt: null,
-  });
-  return response.data;
+  const response = await apiClient.post<SupportRequest[]>(
+    "/requests",
+    {
+      ...payload,
+      customer_id: customerId,
+      assigned_agent_id: assignedAgentId,
+      status: "open",
+      reference,
+      created_at: now,
+      updated_at: now,
+      resolved_at: null,
+    },
+    {
+      headers: {
+        Prefer: "return=representation",
+      },
+    }
+  );
+  return response.data[0];
 }
 
 export async function updateRequestStatus(
   id: string,
   status: SupportRequest["status"]
 ): Promise<SupportRequest> {
-  const response = await apiClient.patch<SupportRequest>(`/requests/${id}`, {
-    status,
-    updatedAt: new Date().toISOString(),
-    resolvedAt: status === "resolved" ? new Date().toISOString() : null,
-  });
-  return response.data;
+  const response = await apiClient.patch<SupportRequest[]>(
+    `/requests?id=eq.${id}`,
+    {
+      status,
+      updated_at: new Date().toISOString(),
+      resolved_at: status === "resolved" ? new Date().toISOString() : null,
+    },
+    {
+      headers: {
+        Prefer: "return=representation",
+      },
+    }
+  );
+  return response.data[0];
 }
