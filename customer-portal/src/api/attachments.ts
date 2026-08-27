@@ -9,6 +9,7 @@ export async function fetchAttachments(requestId: string): Promise<Attachment[]>
 export async function uploadAttachment(requestId: string, file: File): Promise<Attachment> {
   const form = new FormData();
   form.append("file", file);
+  form.append("request_id", requestId);
   const response = await apiClient.post<Attachment>(`/attachments`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
