@@ -227,11 +227,11 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                     class="full-width"
                     id="claim-btn"
                     (click)="claimRequest()"
-                    [disabled]="request.assignedAgentId === currentUser?.id || isClaiming"
+                    [disabled]="request.assignedAgentId === currentUser.id || isClaiming"
                     *ngIf="currentUser?.role === 'agent' || currentUser?.role === 'manager'"
                   >
                     <mat-icon>person_add</mat-icon>
-                    {{ request.assignedAgentId === currentUser?.id ? 'You own this' : 'Claim Request' }}
+                    {{ request.assignedAgentId === currentUser.id ? 'You own this' : 'Claim Request' }}
                   </button>
 
                   <div *ngIf="currentUser?.role === 'manager'" class="reassign-section">
