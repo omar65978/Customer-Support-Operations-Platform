@@ -2,17 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  user_metadata?: {
-    full_name?: string;
-    role?: string;
-  };
-}
+import { User } from '../models';
 
 @Injectable({
   providedIn: 'root'
@@ -25,13 +15,13 @@ export class AuthService {
 
   private mapSupabaseUser(rawUser: any): User {
     if (!rawUser) {
-      return { id: '', email: '', name: 'User', role: 'agent' };
+      return { id: '', email: '', name: 'User', role: 'agent' } as unknown as User;
     }
     return {
       ...rawUser,
       name: rawUser.name || rawUser.user_metadata?.full_name || rawUser.email || 'User',
       role: rawUser.role || rawUser.user_metadata?.role || 'agent',
-    };
+    } as User;
   }
 
   private getStoredUser(): User | null {
