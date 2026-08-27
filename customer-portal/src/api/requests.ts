@@ -14,6 +14,18 @@ export interface RequestPage {
   pageSize: number;
 }
 
+function mapRequest(r: any): SupportRequest {
+  if (!r) return r;
+  return {
+    ...r,
+    customerId: r.customer_id ?? r.customerId,
+    assignedAgentId: r.assigned_agent_id ?? r.assignedAgentId,
+    createdAt: r.created_at ?? r.createdAt,
+    updatedAt: r.updated_at ?? r.updatedAt,
+    resolvedAt: r.resolved_at ?? r.resolvedAt,
+  };
+}
+
 export async function fetchMyRequests(
   filters: RequestFilters = {},
   page = 1,
@@ -30,10 +42,10 @@ export async function fetchMyRequests(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const response = await apiClient.get<SupportRequest[]>(`/requests?${params.toString()}`, {
+  const response = await apiClient.get<any[]>(`/requests?${params.toString()}`, {
     headers: {
-      Prefer: "count=exact",
-      Range: `${from}-${to}`,
+      "Range": `${from}-${to}`,
+      "Prefer": "count=exact",
     },
   });
 
@@ -46,13 +58,16 @@ export async function fetchMyRequests(
     total = Array.isArray(response.data) ? response.data.length : 0;
   }
 
-  const data: SupportRequest[] = Array.isArray(response.data) ? response.data : [];
+  const data: SupportRequest[] = Array.isArray(response.data)
+    ? response.data.map(mapRequest)
+    : [];
+
   return { data, total, page, pageSize };
 }
 
 export async function fetchRequest(id: string): Promise<SupportRequest> {
-  const response = await apiClient.get<SupportRequest[]>(`/requests?id=eq.${id}`);
-  return response.data[0];
+  const response = await apiClient.get<any[]>(`/requests?id=eq.${id}`);
+  return mapRequest(response.data[0]);
 }
 
 export async function fetchAgents(): Promise<User[]> {
@@ -71,7 +86,7 @@ export async function createRequest(
   const now = new Date().toISOString();
   const reference = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
 
-  const response = await apiClient.post<SupportRequest[]>(
+  const response = await apiClient.post<any[]>(
     "/requests",
     {
       ...payload,
@@ -89,14 +104,14 @@ export async function createRequest(
       },
     }
   );
-  return response.data[0];
+  return mapRequest(response.data[0]);
 }
 
 export async function updateRequestStatus(
   id: string,
   status: SupportRequest["status"]
 ): Promise<SupportRequest> {
-  const response = await apiClient.patch<SupportRequest[]>(
+  const response = await apiClient.patch<any[]>(
     `/requests?id=eq.${id}`,
     {
       status,
@@ -109,5 +124,5 @@ export async function updateRequestStatus(
       },
     }
   );
-  return response.data[0];
+  return mapRequest(response.data[0]);
 }
