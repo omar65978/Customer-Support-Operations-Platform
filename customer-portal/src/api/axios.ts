@@ -15,8 +15,8 @@ apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
 
   config.headers["apikey"] = SUPABASE_ANON_KEY;
-
-  if (token && token.split('.').length === 3) {
+  
+  if (token && token.trim() !== "") {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
     config.headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
