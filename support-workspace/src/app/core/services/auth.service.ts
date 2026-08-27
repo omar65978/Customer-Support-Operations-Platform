@@ -6,8 +6,8 @@ import { environment } from '../../../environments/environment';
 export interface User {
   id: string;
   email: string;
-  name?: string;
-  role?: string;
+  name: string;
+  role: string;
   user_metadata?: {
     full_name?: string;
     role?: string;
@@ -24,10 +24,12 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   private mapSupabaseUser(rawUser: any): User {
-    if (!rawUser) return rawUser;
+    if (!rawUser) {
+      return { id: '', email: '', name: 'User', role: 'agent' };
+    }
     return {
       ...rawUser,
-      name: rawUser.name || rawUser.user_metadata?.full_name || rawUser.email,
+      name: rawUser.name || rawUser.user_metadata?.full_name || rawUser.email || 'User',
       role: rawUser.role || rawUser.user_metadata?.role || 'agent',
     };
   }
@@ -43,8 +45,12 @@ export class AuthService {
     }
   }
 
-  public get currentUserValue(): User | null {
+  public get currentUser(): User | null {
     return this.currentUserSubject.value;
+  }
+
+  public get isLoggedIn(): boolean {
+    return !!this.currentUserSubject.value && !!localStorage.getItem('token');
   }
 
   login(credentials: { email: string; password: string }): Observable<any> {
@@ -64,6 +70,14 @@ export class AuthService {
         }
       })
     );
+  }
+
+  getAllAgents(): Observable<User[]> {
+    const url = `${environment.apiUrl}/users?select=*`;
+    const headers = new HttpHeaders({
+      'apikey': environment.supabaseKey
+    });
+    return this.http.get<User[]>(url, { headers });
   }
 
   logout(): void {
