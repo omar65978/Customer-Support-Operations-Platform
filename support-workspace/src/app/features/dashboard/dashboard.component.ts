@@ -190,9 +190,9 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="updatedAt">
+          <ng-container matColumnDef="updated_at">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Updated</th>
-            <td mat-cell *matCellDef="let r" class="date-cell">{{ timeAgo(r.updatedAt) }}</td>
+            <td mat-cell *matCellDef="let r" class="date-cell">{{ timeAgo(r.updated_at) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="actions">
@@ -411,7 +411,7 @@ export class DashboardComponent implements OnInit {
   pageSize = 10;
   pageIndex = 0;
 
-  displayedColumns = ['reference', 'title', 'category', 'priority', 'status', 'assignedAgentId', 'updatedAt', 'actions'];
+  displayedColumns = ['reference', 'title', 'category', 'priority', 'status', 'assignedAgentId', 'updated_at', 'actions'];
 
   statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
   priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));

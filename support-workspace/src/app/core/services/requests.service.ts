@@ -26,23 +26,35 @@ export class RequestsService {
   getAll(filters: RequestFilters = {}, agentId?: string, isManager = false, page = 1, pageSize = 10): Observable<RequestPage> {
     let params = new HttpParams();
 
+    params = params.set('order', 'updated_at.desc');
+
     if (!isManager && agentId) {
-      params = params.set('assignedAgentId', agentId);
+      params = params.set('assigned_agent_id', `eq.${agentId}`);
     }
 
-    if (filters.status) params = params.set('status', filters.status);
-    if (filters.priority) params = params.set('priority', filters.priority);
-    if (filters.category) params = params.set('category', filters.category);
-    if (filters.q) params = params.set('_q', filters.q);
+    if (filters.status) params = params.set('status', `eq.${filters.status}`);
+    if (filters.priority) params = params.set('priority', `eq.${filters.priority}`);
+    if (filters.category) params = params.set('category', `eq.${filters.category}`);
+    if (filters.q) params = params.set('reference', `ilike.*${filters.q}*`);
 
-    params = params.set('_sort', 'updatedAt');
-    params = params.set('_order', 'desc');
-    params = params.set('_page', String(page));
-    params = params.set('_limit', String(pageSize));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-    return this.http.get<SupportRequest[]>(this.base, { params, observe: 'response' }).pipe(
+    return this.http.get<SupportRequest[]>(this.base, {
+      params,
+      observe: 'response',
+      headers: {
+        'Prefer': 'count=exact',
+        'Range': `${from}-${to}`
+      }
+    }).pipe(
       map((response: HttpResponse<SupportRequest[]>) => {
-        const total = parseInt(response.headers.get('x-total-count') || '0', 10);
+        const contentRange = response.headers.get('content-range');
+        let total = 0;
+        if (contentRange) {
+          const parts = contentRange.split('/');
+          if (parts[1]) total = parseInt(parts[1], 10);
+        }
         const data = response.body ?? [];
         return { data, total, page, pageSize };
       })
@@ -50,36 +62,44 @@ export class RequestsService {
   }
 
   getOne(id: string): Observable<SupportRequest> {
-    return this.http.get<SupportRequest>(`${this.base}/${id}`);
+    return this.http.get<SupportRequest[]>(`${this.base}?id=eq.${id}`).pipe(
+      map((requests) => requests[0])
+    );
   }
 
   updateStatus(id: string, status: RequestStatus): Observable<SupportRequest> {
-    const patch: Partial<SupportRequest> & { resolvedAt?: string | null } = {
+    const patch = {
       status,
-      updatedAt: new Date().toISOString(),
-      resolvedAt: status === 'resolved' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+      resolved_at: status === 'resolved' ? new Date().toISOString() : null,
     };
-    return this.http.patch<SupportRequest>(`${this.base}/${id}`, patch);
+    return this.http.patch<SupportRequest[]>(`${this.base}?id=eq.${id}`, patch, {
+      headers: { 'Prefer': 'return=representation' }
+    }).pipe(map((res) => res[0]));
   }
 
   assign(id: string, agentId: string | null): Observable<SupportRequest> {
-    return this.http.patch<SupportRequest>(`${this.base}/${id}`, {
-      assignedAgentId: agentId,
+    return this.http.patch<SupportRequest[]>(`${this.base}?id=eq.${id}`, {
+      assigned_agent_id: agentId,
       status: agentId ? 'in_progress' : 'open',
-      updatedAt: new Date().toISOString(),
-    });
+      updated_at: new Date().toISOString(),
+    }, {
+      headers: { 'Prefer': 'return=representation' }
+    }).pipe(map((res) => res[0]));
   }
 
   close(id: string): Observable<SupportRequest> {
-    return this.http.patch<SupportRequest>(`${this.base}/${id}`, {
+    return this.http.patch<SupportRequest[]>(`${this.base}?id=eq.${id}`, {
       status: 'closed',
-      updatedAt: new Date().toISOString(),
-    });
+      updated_at: new Date().toISOString(),
+    }, {
+      headers: { 'Prefer': 'return=representation' }
+    }).pipe(map((res) => res[0]));
   }
 
   getAllAgentsForLookup(): Observable<User[]> {
-    return this.http.get<User[]>(`${environment.apiUrl}/users?role=agent`).pipe(
-      map((users) => (Array.isArray(users) ? users.filter((u) => u.role === 'agent') : []))
+    return this.http.get<User[]>(`${environment.apiUrl}/users?role=eq.agent`).pipe(
+      map((users) => (Array.isArray(users) ? users : []))
     );
   }
 }
