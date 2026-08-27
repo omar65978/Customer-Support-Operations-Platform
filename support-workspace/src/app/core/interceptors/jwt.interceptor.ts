@@ -1,12 +1,20 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const token = localStorage.getItem('token');
+  
+  const headersConfig: Record<string, string> = {
+    'apikey': environment.supabaseKey,
+  };
+
   if (token) {
-    const cloned = req.clone({
-      setHeaders: { Authorization: `Bearer ${token}` },
-    });
-    return next(cloned);
+    headersConfig['Authorization'] = `Bearer ${token}`;
   }
-  return next(req);
+
+  const clonedReq = req.clone({
+    setHeaders: headersConfig
+  });
+
+  return next(clonedReq);
 };
