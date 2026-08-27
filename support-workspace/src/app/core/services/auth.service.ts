@@ -6,8 +6,11 @@ import { environment } from '../../../environments/environment';
 export interface User {
   id: string;
   email: string;
+  name?: string;
+  role?: string;
   user_metadata?: {
     full_name?: string;
+    role?: string;
   };
 }
 
@@ -20,11 +23,21 @@ export class AuthService {
 
   constructor(private http: HttpClient) {}
 
+  private mapSupabaseUser(rawUser: any): User {
+    if (!rawUser) return rawUser;
+    return {
+      ...rawUser,
+      name: rawUser.name || rawUser.user_metadata?.full_name || rawUser.email,
+      role: rawUser.role || rawUser.user_metadata?.role || 'agent',
+    };
+  }
+
   private getStoredUser(): User | null {
     const stored = localStorage.getItem('user');
     if (!stored) return null;
     try {
-      return JSON.parse(stored) as User;
+      const parsed = JSON.parse(stored);
+      return this.mapSupabaseUser(parsed);
     } catch {
       return null;
     }
@@ -44,9 +57,10 @@ export class AuthService {
     return this.http.post<any>(url, credentials, { headers }).pipe(
       tap(res => {
         if (res.access_token) {
+          const mappedUser = this.mapSupabaseUser(res.user);
           localStorage.setItem('token', res.access_token);
-          localStorage.setItem('user', JSON.stringify(res.user));
-          this.currentUserSubject.next(res.user);
+          localStorage.setItem('user', JSON.stringify(mappedUser));
+          this.currentUserSubject.next(mappedUser);
         }
       })
     );
