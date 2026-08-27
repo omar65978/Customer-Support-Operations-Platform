@@ -46,9 +46,9 @@
       "description": "I have been trying to access my billing history for the past week but the page keeps showing an error. I need to download invoices for my accounting records urgently.",
       "category": "billing",
       "priority": "high",
-      "status": "in_progress",
+      "status": "waiting_for_customer",
       "createdAt": "2026-08-01T09:00:00.000Z",
-      "updatedAt": "2026-08-05T14:30:00.000Z",
+      "updatedAt": "2026-08-27T11:47:21.110Z",
       "resolvedAt": null
     },
     {
@@ -69,14 +69,14 @@
       "id": "r3",
       "reference": "REQ-003",
       "customerId": "u1",
-      "assignedAgentId": null,
+      "assignedAgentId": "u4",
       "title": "API rate limiting causing integration failures",
       "description": "Our integration is hitting rate limits despite being well within the documented thresholds. This is causing approximately 15% of our API calls to fail during peak hours.",
       "category": "technical",
       "priority": "medium",
-      "status": "open",
+      "status": "in_progress",
       "createdAt": "2026-08-07T08:00:00.000Z",
-      "updatedAt": "2026-08-07T08:00:00.000Z",
+      "updatedAt": "2026-08-27T11:47:21.157Z",
       "resolvedAt": null
     },
     {
@@ -134,6 +134,20 @@
       "assignedAgentId": "u3",
       "resolvedAt": null,
       "id": "nZdsVEH"
+    },
+    {
+      "id": "5aafb28f-23c4-439c-9f0c-e6895538b694",
+      "title": "New request via API",
+      "description": "Testing POST /requests endpoint",
+      "category": "general",
+      "priority": "low",
+      "status": "open",
+      "reference": "REQ-APITEST",
+      "customerId": "u1",
+      "assignedAgentId": null,
+      "createdAt": "2026-08-27T12:00:00Z",
+      "updatedAt": "2026-08-27T12:00:00Z",
+      "resolvedAt": null
     }
   ],
   "messages": [
@@ -246,6 +260,28 @@
       "content": "Great news Bob! Your refund of $89.99 has been reprocessed and should appear in your account within 2-3 business days. We apologize for the inconvenience and delay. Please let us know if you do not see it by August 10th.",
       "isInternal": false,
       "createdAt": "2026-08-06T16:45:00.000Z"
+    },
+    {
+      "id": "43790430-3050-449a-a230-833ed3bd4c9f",
+      "requestId": "r1",
+      "authorId": "u1",
+      "authorName": "Alice Johnson",
+      "authorRole": "customer",
+      "content": "Customer reply test",
+      "isInternal": false,
+      "createdAt": "2026-08-27T11:47:21.080Z",
+      "attachments": []
+    },
+    {
+      "id": "06830bbf-355f-4eb6-b233-aa8c10bada7e",
+      "requestId": "r1",
+      "authorId": "u3",
+      "authorName": "Sarah Chen",
+      "authorRole": "agent",
+      "content": "Internal agent note",
+      "isInternal": true,
+      "createdAt": "2026-08-27T11:47:21.095Z",
+      "attachments": []
     }
   ],
   "attachments": []

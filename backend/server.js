@@ -77,17 +77,6 @@ function canAccessRequest(user, record) {
   return false;
 }
 
-app.use(
-  auth.rewriter({
-    users: 640,
-    requests: 640,
-    messages: 640,
-    attachments: 640,
-  })
-);
-
-app.use(auth);
-
 app.get('/stats', (req, res) => {
   const user = getUserFromReq(req);
   if (!user || (user.role !== 'agent' && user.role !== 'manager')) {
@@ -175,6 +164,38 @@ app.get('/requests', (req, res) => {
   return res.json(data);
 });
 
+app.post('/requests', (req, res) => {
+  const user = getUserFromReq(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  if (user.role !== 'customer' && user.role !== 'agent' && user.role !== 'manager') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const { title, description, category, priority, customerId, assignedAgentId, status, reference, createdAt, updatedAt, resolvedAt } = req.body;
+  if (!title || !description || !category || !priority) {
+    return res.status(422).json({ error: 'title, description, category and priority are required' });
+  }
+
+  const now = new Date().toISOString();
+  const newRequest = {
+    id: uuidv4(),
+    title,
+    description,
+    category,
+    priority,
+    status: status || 'open',
+    reference: reference || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+    customerId: customerId || (user.role === 'customer' ? user.id : null),
+    assignedAgentId: assignedAgentId || null,
+    createdAt: createdAt || now,
+    updatedAt: updatedAt || now,
+    resolvedAt: resolvedAt || null,
+  };
+
+  router.db.get('requests').push(newRequest).write();
+  return res.status(201).json(newRequest);
+});
+
 app.get('/requests/:id', (req, res) => {
   const user = getUserFromReq(req);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -187,6 +208,32 @@ app.get('/requests/:id', (req, res) => {
   }
 
   return res.json(record);
+});
+
+app.patch('/requests/:id', (req, res) => {
+  const user = getUserFromReq(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const record = router.db.get('requests').find({ id: req.params.id }).value();
+  if (!record) return res.status(404).json({ error: 'Not found' });
+
+  if (!canAccessRequest(user, record)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (user.role === 'customer') {
+    return res.status(403).json({ error: 'Customers cannot update requests directly' });
+  }
+
+  const allowedFields = ['status', 'assignedAgentId', 'priority', 'updatedAt', 'resolvedAt'];
+  const update = {};
+  allowedFields.forEach(f => {
+    if (req.body[f] !== undefined) update[f] = req.body[f];
+  });
+  update.updatedAt = new Date().toISOString();
+
+  const updated = router.db.get('requests').find({ id: req.params.id }).assign(update).write();
+  return res.json(router.db.get('requests').find({ id: req.params.id }).value());
 });
 
 app.post('/requests/:id/messages', (req, res) => {
@@ -350,6 +397,22 @@ app.get('/attachments/:id/download', (req, res) => {
   return res.sendFile(filePath);
 });
 
+app.get('/users', (req, res) => {
+  const user = getUserFromReq(req);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  let users = router.db.get('users').value();
+  const { role } = req.query;
+  if (role) {
+    users = users.filter(u => u.role === role);
+  }
+
+  const safeUsers = users.map(({ password, ...rest }) => rest);
+  return res.json(safeUsers);
+});
+
+app.use(auth.rewriter({ users: 660 }));
+app.use(auth);
 app.use(router);
 
 const PORT = process.env.PORT || 3001;

@@ -1,10 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -13,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { debounceTime, distinctUntilChanged } from 'rxjs';
+import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 import { RequestsService, type RequestFilters } from '../../core/services/requests.service';
 import { AuthService } from '../../core/services/auth.service';
 import type { SupportRequest, RequestStatus, RequestPriority, RequestCategory, User } from '../../core/models';
@@ -28,7 +27,6 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
     ReactiveFormsModule,
     MatTableModule,
     MatPaginatorModule,
-    MatSortModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -140,14 +138,14 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
         <button mat-flat-button color="primary" (click)="loadRequests()">Retry</button>
       </div>
 
-      <div *ngIf="!isLoading && !error && pagedRequests.length === 0" class="empty-container">
+      <div *ngIf="!isLoading && !error && requests.length === 0" class="empty-container">
         <mat-icon class="empty-icon">inbox</mat-icon>
         <p class="empty-title">No requests found</p>
         <p class="empty-sub">Try adjusting your filters or search query.</p>
       </div>
 
-      <div *ngIf="!isLoading && !error && pagedRequests.length > 0" class="table-wrapper">
-        <table mat-table [dataSource]="pagedRequests" matSort (matSortChange)="onSort($event)" class="requests-table">
+      <div *ngIf="!isLoading && !error && requests.length > 0" class="table-wrapper">
+        <table mat-table [dataSource]="requests" class="requests-table">
 
           <ng-container matColumnDef="reference">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Reference</th>
@@ -190,9 +188,9 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="updated_at">
+          <ng-container matColumnDef="updatedAt">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Updated</th>
-            <td mat-cell *matCellDef="let r" class="date-cell">{{ timeAgo(r.updated_at) }}</td>
+            <td mat-cell *matCellDef="let r" class="date-cell">{{ timeAgo(r.updatedAt) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="actions">
@@ -210,8 +208,8 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
       </div>
 
       <mat-paginator
-        *ngIf="!isLoading && !error && filteredRequests.length > 0"
-        [length]="filteredRequests.length"
+        *ngIf="!isLoading && !error && total > 0"
+        [length]="total"
         [pageSize]="pageSize"
         [pageSizeOptions]="[10, 25, 50]"
         (page)="onPage($event)"
@@ -392,13 +390,12 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
     .empty-sub { color: #64748b; margin: 0; }
   `],
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private requestsService = inject(RequestsService);
   private authService = inject(AuthService);
 
-  allRequests: SupportRequest[] = [];
-  filteredRequests: SupportRequest[] = [];
-  pagedRequests: SupportRequest[] = [];
+  requests: SupportRequest[] = [];
+  total = 0;
   agentMap: Record<string, string> = {};
   isLoading = true;
   error = '';
@@ -411,11 +408,13 @@ export class DashboardComponent implements OnInit {
   pageSize = 10;
   pageIndex = 0;
 
-  displayedColumns = ['reference', 'title', 'category', 'priority', 'status', 'assignedAgentId', 'updated_at', 'actions'];
+  displayedColumns = ['reference', 'title', 'category', 'priority', 'status', 'assignedAgentId', 'updatedAt', 'actions'];
 
   statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
   priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));
   categoryOptions = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }));
+
+  private subs: Subscription[] = [];
 
   get currentUser() { return this.authService.currentUser; }
   get hasActiveFilters(): boolean {
@@ -425,11 +424,15 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.loadAgents();
     this.loadRequests();
-    this.searchControl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.applyFilters());
-    this.statusControl.valueChanges.subscribe(() => this.applyFilters());
-    this.priorityControl.valueChanges.subscribe(() => this.applyFilters());
-    this.categoryControl.valueChanges.subscribe(() => this.applyFilters());
+    this.subs.push(
+      this.searchControl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
+      this.statusControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
+      this.priorityControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
+      this.categoryControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
+    );
   }
+
+  ngOnDestroy(): void { this.subs.forEach((s) => s.unsubscribe()); }
 
   loadAgents(): void {
     this.requestsService.getAllAgentsForLookup().subscribe({
@@ -446,11 +449,17 @@ export class DashboardComponent implements OnInit {
     const user = this.currentUser;
     const isManager = user?.role === 'manager';
     const agentId = user?.role === 'agent' ? user.id : undefined;
+    const filters: RequestFilters = {
+      status: (this.statusControl.value as RequestStatus) || undefined,
+      priority: this.priorityControl.value || undefined,
+      category: this.categoryControl.value || undefined,
+      q: this.searchControl.value || undefined,
+    };
 
-    this.requestsService.getAll({}, agentId, isManager).subscribe({
+    this.requestsService.getAll(filters, agentId, isManager, this.pageIndex + 1, this.pageSize).subscribe({
       next: (page) => {
-        this.allRequests = page.data;
-        this.applyFilters();
+        this.requests = page.data;
+        this.total = page.total;
         this.isLoading = false;
       },
       error: () => {
@@ -462,29 +471,11 @@ export class DashboardComponent implements OnInit {
 
   get stats() {
     return {
-      total: this.allRequests.length,
-      open: this.allRequests.filter((r) => r.status === 'open').length,
-      inProgress: this.allRequests.filter((r) => r.status === 'in_progress').length,
-      urgent: this.allRequests.filter((r) => r.priority === 'urgent').length,
+      total: this.total,
+      open: this.requests.filter((r) => r.status === 'open').length,
+      inProgress: this.requests.filter((r) => r.status === 'in_progress').length,
+      urgent: this.requests.filter((r) => r.priority === 'urgent').length,
     };
-  }
-
-  applyFilters(): void {
-    const search = (this.searchControl.value ?? '').toLowerCase();
-    const status = this.statusControl.value ?? '';
-    const priority = this.priorityControl.value ?? '';
-    const category = this.categoryControl.value ?? '';
-
-    this.filteredRequests = this.allRequests.filter((r) => {
-      const matchSearch = !search || r.title.toLowerCase().includes(search) || r.reference.toLowerCase().includes(search);
-      const matchStatus = !status || r.status === status;
-      const matchPriority = !priority || r.priority === priority;
-      const matchCategory = !category || r.category === category;
-      return matchSearch && matchStatus && matchPriority && matchCategory;
-    });
-
-    this.pageIndex = 0;
-    this.updatePaged();
   }
 
   clearFilters(): void {
@@ -492,31 +483,12 @@ export class DashboardComponent implements OnInit {
     this.statusControl.setValue('');
     this.priorityControl.setValue('');
     this.categoryControl.setValue('');
-    this.applyFilters();
-  }
-
-  onSort(sort: Sort): void {
-    if (!sort.active || sort.direction === '') {
-      this.filteredRequests = [...this.allRequests];
-    } else {
-      this.filteredRequests = [...this.filteredRequests].sort((a, b) => {
-        const aVal = ((a as unknown) as Record<string, unknown>)[sort.active] as string ?? '';
-        const bVal = ((b as unknown) as Record<string, unknown>)[sort.active] as string ?? '';
-        return sort.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      });
-    }
-    this.updatePaged();
   }
 
   onPage(event: PageEvent): void {
     this.pageSize = event.pageSize;
     this.pageIndex = event.pageIndex;
-    this.updatePaged();
-  }
-
-  updatePaged(): void {
-    const start = this.pageIndex * this.pageSize;
-    this.pagedRequests = this.filteredRequests.slice(start, start + this.pageSize);
+    this.loadRequests();
   }
 
   agentName(agentId: string): string {

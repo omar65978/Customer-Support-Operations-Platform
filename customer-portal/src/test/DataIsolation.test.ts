@@ -67,7 +67,7 @@ describe('Customer data isolation', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('sendMessage always sets isInternal=false and authorRole=customer', async () => {
+  it('sendMessage always sets isInternal=false', async () => {
     const { default: mockClient } = await import('../api/axios') as unknown as { default: { post: ReturnType<typeof vi.fn> } };
     const { sendMessage } = await import('../api/messages');
 
@@ -87,7 +87,7 @@ describe('Customer data isolation', () => {
     }));
   });
 
-  it('auth login correctly reads nested user object from response', async () => {
+  it('auth login calls /login endpoint and returns user with accessToken', async () => {
     const { default: mockClient } = await import('../api/axios') as unknown as { default: { post: ReturnType<typeof vi.fn> } };
     const { login } = await import('../api/auth');
 
@@ -100,6 +100,10 @@ describe('Customer data isolation', () => {
 
     const result = await login({ email: 'alice@example.com', password: 'password123' });
 
+    expect(mockClient.post).toHaveBeenCalledWith('/login', expect.objectContaining({
+      email: 'alice@example.com',
+      password: 'password123',
+    }));
     expect(result.id).toBe('u1');
     expect(result.name).toBe('Alice Johnson');
     expect(result.role).toBe('customer');

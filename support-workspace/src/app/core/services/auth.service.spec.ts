@@ -36,7 +36,7 @@ describe('AuthService', () => {
   });
 
   it('restores user from localStorage on initialization', () => {
-    const stored = { id: 'u3', email: 'agent1@support.com', name: 'Sarah Chen', role: 'agent', accessToken: 'token-abc' };
+    const stored = { id: 'u3', email: 'agent1@support.com', name: 'Sarah Chen', role: 'agent' };
     localStorage.setItem('user', JSON.stringify(stored));
     localStorage.setItem('token', 'token-abc');
 
@@ -86,7 +86,7 @@ describe('AuthService', () => {
 
   it('clears localStorage and user state on logout', () => {
     localStorage.setItem('token', 'existing-token');
-    localStorage.setItem('user', JSON.stringify({ id: 'u3', email: 'agent1@support.com', name: 'Sarah', role: 'agent', accessToken: 'existing-token' }));
+    localStorage.setItem('user', JSON.stringify({ id: 'u3', email: 'agent1@support.com', name: 'Sarah', role: 'agent' }));
 
     service.logout();
 

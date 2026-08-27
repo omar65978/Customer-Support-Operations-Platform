@@ -1,26 +1,18 @@
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-
 const apiClient = axios.create({
-  baseURL: API_BASE,
-  headers: {
-    "Content-Type": "application/json",
-    "apikey": SUPABASE_ANON_KEY,
-  },
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3001",
+  headers: { "Content-Type": "application/json" },
 });
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (r) => r,
   (error) => {
     if (error.response?.status === 401 && !window.location.pathname.includes("/login")) {
       localStorage.removeItem("token");

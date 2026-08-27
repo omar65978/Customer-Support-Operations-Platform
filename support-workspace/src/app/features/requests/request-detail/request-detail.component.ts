@@ -183,7 +183,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Updated</span>
-                  <span class="detail-value">{{ formatDate(request.updated_at) }}</span>
+                  <span class="detail-value">{{ formatDate(request.updatedAt) }}</span>
                 </div>
                 <div class="detail-row" *ngIf="request.resolvedAt">
                   <span class="detail-label">Resolved</span>

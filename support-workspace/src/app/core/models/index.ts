@@ -25,7 +25,7 @@ export interface SupportRequest {
   priority: RequestPriority;
   status: RequestStatus;
   createdAt: string;
-  updated_at: string;
+  updatedAt: string;
   resolvedAt: string | null;
 }
 

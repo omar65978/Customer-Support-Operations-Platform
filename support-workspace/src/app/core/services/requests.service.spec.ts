@@ -84,7 +84,7 @@ describe('RequestsService', () => {
     req.flush([], { headers: { 'x-total-count': '0' } });
   });
 
-  it('updateStatus sends PATCH with resolved timestamp when status is resolved', () => {
+  it('updateStatus sends PATCH to /requests/:id with resolved timestamp', () => {
     service.updateStatus('r1', 'resolved').subscribe();
     const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
     expect(req.request.method).toBe('PATCH');
@@ -117,7 +117,7 @@ describe('RequestsService', () => {
     req.flush({});
   });
 
-  it('close sends PATCH with status closed', () => {
+  it('close sends PATCH with status closed to /requests/:id', () => {
     service.close('r1').subscribe();
     const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
     expect(req.request.body.status).toBe('closed');
