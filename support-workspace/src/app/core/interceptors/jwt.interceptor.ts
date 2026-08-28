@@ -1,4 +1,6 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
+import { catchError } from 'rxjs/operators';
+import { throwError } from 'rxjs';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const token = localStorage.getItem('token');
@@ -13,5 +15,17 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
     }
   });
 
-  return next(clonedReq);
+  return next(clonedReq).pipe(
+    catchError((error: HttpErrorResponse) => {
+      // إذا انتهت صلاحية التوكن (PGRST303) أو حدث خطأ صلاحيات (401/403)
+      if (error.error?.code === 'PGRST303' || error.status === 401 || error.status === 403) {
+        if (!window.location.pathname.includes('/login')) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+      }
+      return throwError(() => error);
+    })
+  );
 };
