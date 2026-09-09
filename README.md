@@ -5,11 +5,11 @@ A production-ready customer support platform consisting of a React Customer Port
 <div align="center">
 
   <a href="https://customer-support-operations-platfor-taupe.vercel.app/">
-    <img src="https://img.shields.io/badge/Customer%20Portal-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=red" alt="Customer Portal Live Demo">
+    <img src="https://img.shields.io/badge/Customer%20Portal-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Customer Portal Live Demo">
   </a>
 
   <a href="https://customer-support-operations-platfor-murex.vercel.app/">
-    <img src="https://img.shields.io/badge/Support%20Workspace-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=red" alt="Support Workspace Live Demo">
+    <img src="https://img.shields.io/badge/Support%20Workspace-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Support Workspace Live Demo">
   </a>
 
 </div>
