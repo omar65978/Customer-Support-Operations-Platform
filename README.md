@@ -1,16 +1,18 @@
 A production-ready customer support platform consisting of a React Customer Portal and an Angular Support Workspace.
 
-## Live Demo
+## 🚀 Live Demo
 
 <div align="center">
 
-  <a href="https://customer-support-operations-platfor-taupe.vercel.app/">
-    <img src="https://img.shields.io/badge/Customer%20Portal-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Customer Portal Live Demo">
-  </a>
+<a href="https://customer-support-operations-platfor-taupe.vercel.app/">
+<img src="https://img.shields.io/badge/👤%20CUSTOMER%20PORTAL-2563EB?style=for-the-badge&logo=react&logoColor=white&labelColor=1E3A8A" alt="Customer Portal" width="320"/>
+</a>
 
-  <a href="https://customer-support-operations-platfor-murex.vercel.app/">
-    <img src="https://img.shields.io/badge/Support%20Workspace-Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Support Workspace Live Demo">
-  </a>
+&nbsp;&nbsp;&nbsp;
+
+<a href="https://customer-support-operations-platfor-murex.vercel.app/">
+<img src="https://img.shields.io/badge/🛠️%20SUPPORT%20WORKSPACE-7C3AED?style=for-the-badge&logo=angular&logoColor=white&labelColor=4C1D95" alt="Support Workspace" width="320"/>
+</a>
 
 </div>
 ## Applications
