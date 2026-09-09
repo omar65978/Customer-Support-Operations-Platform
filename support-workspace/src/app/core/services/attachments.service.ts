@@ -1,61 +1,76 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface Attachment {
   id: string;
-  requestId: string;
-  uploadedBy: string;
-  uploaderName: string;
-  uploaderRole: string;
-  originalName: string;
-  storedName: string;
-  mimeType: string;
+  request_id: string;
+  uploaded_by: string;
+  uploader_name: string;
+  uploader_role: string;
+  original_name: string;
+  stored_name: string;
+  mime_type: string;
   size: number;
-  createdAt: string;
-}
-
-export interface WorkspaceStats {
-  open: number;
-  inProgress: number;
-  waitingForCustomer: number;
-  resolved: number;
-  closed: number;
-  unassigned: number;
-  urgent: number;
-  total: number;
-  active: number;
-  recentActivity: {
-    id: string;
-    requestId: string;
-    authorName: string;
-    authorRole: string;
-    contentPreview: string;
-    createdAt: string;
-  }[];
+  created_at: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AttachmentsService {
   private http = inject(HttpClient);
-  private base = environment.apiUrl;
 
   getForRequest(requestId: string): Observable<Attachment[]> {
-    return this.http.get<Attachment[]>(`${this.base}/requests/${requestId}/attachments`);
+    return this.http.get<Attachment[]>(
+      `${environment.apiUrl}/attachments?request_id=eq.${requestId}&order=created_at.desc`
+    );
   }
 
   upload(requestId: string, file: File): Observable<Attachment> {
-    const form = new FormData();
-    form.append('file', file);
-    return this.http.post<Attachment>(`${this.base}/requests/${requestId}/attachments`, form);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const storedName = `${crypto.randomUUID()}-${file.name}`;
+
+    return new Observable(subscriber => {
+      const storageUrl = `${environment.supabaseUrl}/storage/v1/object/attachments/${storedName}`;
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token || environment.supabaseAnonKey}`,
+        'apikey': environment.supabaseAnonKey
+      };
+
+      fetch(storageUrl, { method: 'POST', headers, body: file })
+        .then(res => {
+          if (!res.ok) throw new Error('Upload failed');
+          return res.json();
+        })
+        .then(() => {
+          const metadata = {
+            request_id: requestId,
+            uploaded_by: user.id || '',
+            uploader_name: user.name || 'Unknown',
+            uploader_role: user.role || 'agent',
+            original_name: file.name,
+            stored_name: storedName,
+            mime_type: file.type || 'application/octet-stream',
+            size: file.size
+          };
+
+          this.http.post<Attachment[]>(
+            `${environment.apiUrl}/attachments`,
+            metadata,
+            { headers: { 'Prefer': 'return=representation' } }
+          ).pipe(
+            map(res => Array.isArray(res) ? res[0] : res)
+          ).subscribe({
+            next: att => { subscriber.next(att); subscriber.complete(); },
+            error: err => subscriber.error(err)
+          });
+        })
+        .catch(err => subscriber.error(err));
+    });
   }
 
-  getDownloadUrl(attachmentId: string): string {
-    return `${this.base}/attachments/${attachmentId}/download`;
-  }
-
-  getStats(): Observable<WorkspaceStats> {
-    return this.http.get<WorkspaceStats>(`${this.base}/stats`);
+  getDownloadUrl(storedName: string): string {
+    return `${environment.supabaseUrl}/storage/v1/object/authenticated/attachments/${storedName}`;
   }
 }

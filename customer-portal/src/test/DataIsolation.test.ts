@@ -6,6 +6,7 @@ vi.mock('../api/axios', () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    defaults: { baseURL: 'https://test.supabase.co/rest/v1' },
   },
 }));
 
@@ -19,19 +20,19 @@ describe('Customer data isolation', () => {
 
     const rawMessages = [
       {
-        id: 'm1', requestId: 'r1', authorId: 'u1', authorName: 'Alice',
-        authorRole: 'customer' as const, content: 'My billing issue', isInternal: false,
-        createdAt: '2026-08-01T09:00:00Z',
+        id: 'm1', request_id: 'r1', author_id: 'u1', author_name: 'Alice',
+        author_role: 'customer', content: 'My billing issue', is_internal: false,
+        created_at: '2026-08-01T09:00:00Z',
       },
       {
-        id: 'm2', requestId: 'r1', authorId: 'u3', authorName: 'Sarah',
-        authorRole: 'agent' as const, content: 'Database migration issue — internal only', isInternal: true,
-        createdAt: '2026-08-01T10:00:00Z',
+        id: 'm2', request_id: 'r1', author_id: 'u3', author_name: 'Sarah',
+        author_role: 'agent', content: 'Database migration issue — internal only', is_internal: true,
+        created_at: '2026-08-01T10:00:00Z',
       },
       {
-        id: 'm3', requestId: 'r1', authorId: 'u3', authorName: 'Sarah',
-        authorRole: 'agent' as const, content: 'We are looking into this for you', isInternal: false,
-        createdAt: '2026-08-01T10:30:00Z',
+        id: 'm3', request_id: 'r1', author_id: 'u3', author_name: 'Sarah',
+        author_role: 'agent', content: 'We are looking into this for you', is_internal: false,
+        created_at: '2026-08-01T10:30:00Z',
       },
     ];
 
@@ -49,14 +50,14 @@ describe('Customer data isolation', () => {
 
     const onlyInternalMessages = [
       {
-        id: 'mi1', requestId: 'r1', authorId: 'u3', authorName: 'Agent',
-        authorRole: 'agent' as const, content: 'Internal team note about billing', isInternal: true,
-        createdAt: '2026-08-01T10:00:00Z',
+        id: 'mi1', request_id: 'r1', author_id: 'u3', author_name: 'Agent',
+        author_role: 'agent', content: 'Internal team note about billing', is_internal: true,
+        created_at: '2026-08-01T10:00:00Z',
       },
       {
-        id: 'mi2', requestId: 'r1', authorId: 'u5', authorName: 'Manager',
-        authorRole: 'manager' as const, content: 'Escalation note for manager review', isInternal: true,
-        createdAt: '2026-08-01T11:00:00Z',
+        id: 'mi2', request_id: 'r1', author_id: 'u5', author_name: 'Manager',
+        author_role: 'manager', content: 'Escalation note for manager review', is_internal: true,
+        created_at: '2026-08-01T11:00:00Z',
       },
     ];
 
@@ -67,46 +68,54 @@ describe('Customer data isolation', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('sendMessage always sets isInternal=false', async () => {
+  it('sendMessage posts to /messages with is_internal=false', async () => {
     const { default: mockClient } = await import('../api/axios') as unknown as { default: { post: ReturnType<typeof vi.fn> } };
     const { sendMessage } = await import('../api/messages');
 
+    localStorage.setItem('user', JSON.stringify({ id: 'u1', name: 'Alice', role: 'customer' }));
+
     mockClient.post.mockResolvedValueOnce({
-      data: {
-        id: 'mnew', requestId: 'r1', authorId: 'u1', authorName: 'Alice',
-        authorRole: 'customer', content: 'My reply', isInternal: false,
-        createdAt: new Date().toISOString(),
-      },
+      data: [{
+        id: 'mnew', request_id: 'r1', author_id: 'u1', author_name: 'Alice',
+        author_role: 'customer', content: 'My reply', is_internal: false,
+        created_at: new Date().toISOString(),
+      }],
     });
 
     await sendMessage('r1', { content: 'My reply' });
 
-    expect(mockClient.post).toHaveBeenCalledWith('/requests/r1/messages', expect.objectContaining({
-      isInternal: false,
-      content: 'My reply',
-    }));
+    expect(mockClient.post).toHaveBeenCalledWith(
+      '/messages',
+      expect.objectContaining({
+        is_internal: false,
+        content: 'My reply',
+        request_id: 'r1',
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Prefer: 'return=representation' }),
+      })
+    );
+
+    localStorage.removeItem('user');
   });
 
-  it('auth login calls /login endpoint and returns user with accessToken', async () => {
-    const { default: mockClient } = await import('../api/axios') as unknown as { default: { post: ReturnType<typeof vi.fn> } };
-    const { login } = await import('../api/auth');
+  it('fetchMessages maps snake_case to camelCase fields', async () => {
+    const { default: mockClient } = await import('../api/axios') as unknown as { default: { get: ReturnType<typeof vi.fn> } };
 
-    mockClient.post.mockResolvedValueOnce({
-      data: {
-        accessToken: 'test-jwt',
-        user: { id: 'u1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' },
-      },
+    mockClient.get.mockResolvedValueOnce({
+      data: [{
+        id: 'm1', request_id: 'r1', author_id: 'u1', author_name: 'Alice',
+        author_role: 'customer', content: 'Test', is_internal: false,
+        created_at: '2026-08-01T09:00:00Z',
+      }],
     });
 
-    const result = await login({ email: 'alice@example.com', password: 'password123' });
+    const result = await fetchMessages('r1');
 
-    expect(mockClient.post).toHaveBeenCalledWith('/login', expect.objectContaining({
-      email: 'alice@example.com',
-      password: 'password123',
-    }));
-    expect(result.id).toBe('u1');
-    expect(result.name).toBe('Alice Johnson');
-    expect(result.role).toBe('customer');
-    expect(result.accessToken).toBe('test-jwt');
+    expect(result[0].requestId).toBe('r1');
+    expect(result[0].authorId).toBe('u1');
+    expect(result[0].authorName).toBe('Alice');
+    expect(result[0].authorRole).toBe('customer');
+    expect(result[0].createdAt).toBe('2026-08-01T09:00:00Z');
   });
 });

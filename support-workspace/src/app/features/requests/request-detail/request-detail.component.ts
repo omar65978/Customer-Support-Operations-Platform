@@ -560,8 +560,7 @@ export class RequestDetailComponent implements OnInit {
   reassignControl = new FormControl('');
 
   get currentUser() { return this.authService.currentUser; }
-  
-  // Getter آمن يمنع أخطاء الـ Null أثناء الـ Build في Vercel
+
   get currentUserId(): string {
     return this.currentUser?.id ?? '';
   }

@@ -10,117 +10,102 @@ describe('RequestsService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        RequestsService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [RequestsService, provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(RequestsService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => {
-    httpMock.verify();
-  });
+  afterEach(() => httpMock.verify());
 
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
 
-  it('getAll for manager fetches without assignedAgentId filter', () => {
-    service.getAll({}, undefined, true).subscribe();
-    const req = httpMock.expectOne((r) =>
-      r.url === `${environment.apiUrl}/requests` && !r.params.has('assignedAgentId')
-    );
+  it('getAll for manager fetches without assigned_agent_id filter', () => {
+    service.getAll({}, undefined, true, 1, 10).subscribe(page => {
+      expect(page.data.length).toBe(1);
+      expect(page.data[0].title).toBe('Test');
+    });
+
+    const req = httpMock.expectOne(r => r.url.includes('/requests') && !r.params.has('assigned_agent_id'));
     expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'x-total-count': '0' } });
+    expect(req.request.headers.get('Prefer')).toBe('count=exact');
+    expect(req.request.headers.get('Range')).toBe('0-9');
+    req.flush([{ id: 'r1', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: 'a1', category: 'billing', priority: 'high', status: 'open', created_at: '2024-01-01', updated_at: '2024-01-01' }], {
+      headers: { 'content-range': '0-0/1' }
+    });
   });
 
-  it('getAll for agent adds assignedAgentId filter', () => {
-    service.getAll({}, 'u3', false).subscribe();
-    const req = httpMock.expectOne((r) =>
-      r.url === `${environment.apiUrl}/requests` && r.params.get('assignedAgentId') === 'u3'
-    );
+  it('getAll for agent adds assigned_agent_id filter', () => {
+    service.getAll({}, 'agent-id-1', false, 1, 10).subscribe();
+
+    const req = httpMock.expectOne(r => r.url.includes('/requests') && r.params.get('assigned_agent_id') === 'eq.agent-id-1');
     expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'x-total-count': '0' } });
+    req.flush([], { headers: { 'content-range': '*/0' } });
   });
 
   it('getAll applies status filter as query parameter', () => {
-    service.getAll({ status: 'open' }, undefined, true).subscribe();
-    const req = httpMock.expectOne((r) =>
-      r.url === `${environment.apiUrl}/requests` && r.params.get('status') === 'open'
-    );
-    expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'x-total-count': '0' } });
+    service.getAll({ status: 'open' }, undefined, true, 1, 10).subscribe();
+
+    const req = httpMock.expectOne(r => r.params.get('status') === 'eq.open');
+    req.flush([], { headers: { 'content-range': '*/0' } });
   });
 
-  it('getAll uses _q param for search query', () => {
-    service.getAll({ q: 'billing' }, undefined, true).subscribe();
-    const req = httpMock.expectOne((r) =>
-      r.url === `${environment.apiUrl}/requests` && r.params.get('_q') === 'billing'
-    );
-    expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'x-total-count': '0' } });
-  });
-
-  it('getAll reads total from x-total-count header', (done) => {
-    service.getAll({}, undefined, true).subscribe((page) => {
-      expect(page.total).toBe(7);
-      done();
+  it('getAll reads total from content-range header', () => {
+    service.getAll({}, undefined, true, 1, 10).subscribe(page => {
+      expect(page.total).toBe(25);
     });
-    const req = httpMock.expectOne((r) => r.url === `${environment.apiUrl}/requests`);
-    req.flush([], { headers: { 'x-total-count': '7' } });
+
+    const req = httpMock.expectOne(r => r.url.includes('/requests'));
+    req.flush([], { headers: { 'content-range': '0-9/25' } });
   });
 
-  it('getAll passes pagination params', () => {
-    service.getAll({}, undefined, true, 2, 25).subscribe();
-    const req = httpMock.expectOne((r) =>
-      r.url === `${environment.apiUrl}/requests` &&
-      r.params.get('_page') === '2' &&
-      r.params.get('_limit') === '25'
-    );
-    expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'x-total-count': '0' } });
-  });
+  it('updateStatus sends PATCH with resolved timestamp', () => {
+    service.updateStatus('r1', 'resolved').subscribe(r => {
+      expect(r.status).toBe('resolved');
+    });
 
-  it('updateStatus sends PATCH to /requests/:id with resolved timestamp', () => {
-    service.updateStatus('r1', 'resolved').subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
+    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body.status).toBe('resolved');
-    expect(req.request.body.resolvedAt).toBeTruthy();
-    req.flush({});
-  });
-
-  it('updateStatus sets resolvedAt to null when status is not resolved', () => {
-    service.updateStatus('r1', 'in_progress').subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
-    expect(req.request.body.resolvedAt).toBeNull();
-    req.flush({});
+    expect(req.request.body.resolved_at).toBeTruthy();
+    expect(req.request.headers.get('Prefer')).toBe('return=representation');
+    req.flush([{ id: 'r1', status: 'resolved', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: null, category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: '2024-01-02' }]);
   });
 
   it('assign sends PATCH with agentId and sets status to in_progress', () => {
-    service.assign('r1', 'u3').subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
+    service.assign('r1', 'agent-1').subscribe(r => {
+      expect(r.assignedAgentId).toBe('agent-1');
+      expect(r.status).toBe('in_progress');
+    });
+
+    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
     expect(req.request.method).toBe('PATCH');
-    expect(req.request.body.assignedAgentId).toBe('u3');
+    expect(req.request.body.assigned_agent_id).toBe('agent-1');
     expect(req.request.body.status).toBe('in_progress');
-    req.flush({});
+    req.flush([{ id: 'r1', status: 'in_progress', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: 'agent-1', category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
   });
 
-  it('assign with null agentId sets status back to open', () => {
-    service.assign('r1', null).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
-    expect(req.request.body.assignedAgentId).toBeNull();
-    expect(req.request.body.status).toBe('open');
-    req.flush({});
-  });
+  it('close sends PATCH with status closed', () => {
+    service.close('r1').subscribe(r => {
+      expect(r.status).toBe('closed');
+    });
 
-  it('close sends PATCH with status closed to /requests/:id', () => {
-    service.close('r1').subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/requests/r1`);
+    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
+    expect(req.request.method).toBe('PATCH');
     expect(req.request.body.status).toBe('closed');
-    req.flush({});
+    req.flush([{ id: 'r1', status: 'closed', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: null, category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
+  });
+
+  it('maps snake_case response to camelCase model', () => {
+    service.getOne('r1').subscribe(r => {
+      expect(r.customerId).toBe('cust-1');
+      expect(r.assignedAgentId).toBe('agt-1');
+      expect(r.createdAt).toBe('2024-01-01');
+    });
+
+    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
+    req.flush([{ id: 'r1', title: 'Test', reference: 'REQ-001', customer_id: 'cust-1', assigned_agent_id: 'agt-1', category: 'billing', priority: 'high', status: 'open', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
   });
 });

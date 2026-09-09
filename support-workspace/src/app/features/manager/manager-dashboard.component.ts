@@ -7,8 +7,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { Subscription, interval } from 'rxjs';
-import { switchMap, startWith } from 'rxjs/operators';
-import { AttachmentsService, type WorkspaceStats } from '../../core/services/attachments.service';
+import { switchMap } from 'rxjs/operators';
+import { StatsService, type WorkspaceStats } from '../../core/services/stats.service';
 
 @Component({
   selector: 'app-manager-dashboard',
@@ -102,37 +102,8 @@ import { AttachmentsService, type WorkspaceStats } from '../../core/services/att
         </mat-card>
       </div>
 
-      <mat-card class="activity-card">
-        <mat-card-header>
-          <mat-card-title>Recent Activity</mat-card-title>
-          <mat-card-subtitle>Latest customer-visible messages across all requests</mat-card-subtitle>
-        </mat-card-header>
-        <mat-divider></mat-divider>
-        <mat-card-content class="activity-content">
-          <div *ngIf="!stats.recentActivity.length" class="empty-activity">
-            <mat-icon>chat_bubble_outline</mat-icon>
-            <span>No recent activity</span>
-          </div>
-          <div *ngFor="let item of stats.recentActivity" class="activity-item">
-            <div class="activity-avatar" [class.customer-av]="item.authorRole === 'customer'" [class.agent-av]="item.authorRole !== 'customer'">
-              {{ item.authorName.charAt(0).toUpperCase() }}
-            </div>
-            <div class="activity-body">
-              <div class="activity-header">
-                <span class="activity-author">{{ item.authorName }}</span>
-                <span class="activity-role-badge" [class.customer-badge]="item.authorRole === 'customer'">
-                  {{ item.authorRole === 'customer' ? 'Customer' : 'Agent' }}
-                </span>
-                <span class="activity-ref">
-                  <a [routerLink]="['/requests', item.requestId]" class="ref-link">View request</a>
-                </span>
-                <span class="activity-time">{{ timeAgo(item.createdAt) }}</span>
-              </div>
-              <p class="activity-preview">{{ item.contentPreview }}</p>
-            </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
+
+
 
       <div class="status-breakdown-row">
         <mat-card class="breakdown-card">
@@ -331,7 +302,7 @@ import { AttachmentsService, type WorkspaceStats } from '../../core/services/att
   `],
 })
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
-  private attachmentsService = inject(AttachmentsService);
+  private statsService = inject(StatsService);
 
   stats: WorkspaceStats | null = null;
   isLoading = true;
@@ -342,7 +313,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadStats();
     this.pollSub = interval(30000).pipe(
-      switchMap(() => this.attachmentsService.getStats())
+      switchMap(() => this.statsService.getStats())
     ).subscribe({ next: (s) => { this.stats = s; } });
   }
 
@@ -351,7 +322,7 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
   loadStats(): void {
     this.isLoading = true;
     this.error = '';
-    this.attachmentsService.getStats().subscribe({
+    this.statsService.getStats().subscribe({
       next: (s) => { this.stats = s; this.isLoading = false; },
       error: () => { this.error = 'Failed to load stats. Please retry.'; this.isLoading = false; },
     });
