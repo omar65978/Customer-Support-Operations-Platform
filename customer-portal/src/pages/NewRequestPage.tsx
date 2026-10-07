@@ -57,7 +57,6 @@ export function NewRequestPage() {
     try {
       const req = await createRequest(
         { title: title.trim(), description: description.trim(), category, priority },
-        user!.id
       );
       navigate(`/requests/${req.id}`, { state: { success: true } });
     } catch {

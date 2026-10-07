@@ -1,58 +1,47 @@
 import apiClient from "./axios";
-import type { Message, NewMessagePayload } from "../types";
+import type { Message, NewMessagePayload, UserRole } from "../types";
+
+function mapMessage(message: any): Message {
+  return {
+    id: message.id,
+    requestId: message.request_id ?? message.requestId,
+    authorId: message.author_id ?? message.authorId,
+    authorName: message.author_name ?? message.authorName,
+    authorRole: (message.author_role ?? message.authorRole) as UserRole,
+    content: message.content,
+    isInternal: message.is_internal ?? message.isInternal ?? false,
+    createdAt: message.created_at ?? message.createdAt,
+  };
+}
 
 export async function fetchMessages(requestId: string): Promise<Message[]> {
-  const response = await apiClient.get<any[]>(
-    `/messages?request_id=eq.${requestId}&order=created_at.asc`
-  );
+  const response = await apiClient.get<any[]>("/messages", {
+    params: {
+      request_id: `eq.${requestId}`,
+      is_internal: "eq.false",
+      order: "created_at.asc",
+      select: "id,request_id,author_id,author_name,author_role,content,is_internal,created_at",
+    },
+  });
   const data = Array.isArray(response.data) ? response.data : [];
-  
-  return data
-    .map((m) => ({
-      ...m,
-      isInternal: m.is_internal ?? m.isInternal ?? false,
-      requestId: m.request_id ?? m.requestId,
-      authorId: m.author_id ?? m.authorId,
-      authorName: m.author_name ?? m.authorName,
-      authorRole: m.author_role ?? m.authorRole,
-      createdAt: m.created_at ?? m.createdAt,
-    }))
-    .filter((m) => !m.isInternal);
+  return data.map(mapMessage).filter((message) => !message.isInternal);
 }
 
 export async function sendMessage(
   requestId: string,
-  payload: NewMessagePayload
+  payload: NewMessagePayload,
 ): Promise<Message> {
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
   const response = await apiClient.post<any[]>(
     "/messages",
     {
       request_id: requestId,
-      content: payload.content,
+      content: payload.content.trim(),
       is_internal: false,
-      author_id: user?.id || null,
-      author_name: user?.name || "Customer",
-      author_role: user?.role || "customer",
-      created_at: new Date().toISOString(),
     },
-    {
-      headers: {
-        Prefer: "return=representation",
-      },
-    }
+    { headers: { Prefer: "return=representation" } },
   );
-
-  const m = response.data[0];
-  return {
-    ...m,
-    isInternal: m.is_internal ?? m.isInternal ?? false,
-    requestId: m.request_id ?? m.requestId,
-    authorId: m.author_id ?? m.authorId,
-    authorName: m.author_name ?? m.authorName,
-    authorRole: m.author_role ?? m.authorRole,
-    createdAt: m.created_at ?? m.createdAt,
-  };
+  if (!Array.isArray(response.data) || response.data.length === 0) {
+    throw new Error("Your reply was not saved. Please try again.");
+  }
+  return mapMessage(response.data[0]);
 }

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
+import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -12,8 +13,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
-import { RequestsService, type RequestFilters } from '../../core/services/requests.service';
+import { debounceTime, distinctUntilChanged, interval, Subscription } from 'rxjs';
+import { RequestsService, type RequestFilters, type RequestSortDirection, type RequestSortField } from '../../core/services/requests.service';
+import { StatsService, type WorkspaceStats } from '../../core/services/stats.service';
 import { AuthService } from '../../core/services/auth.service';
 import type { SupportRequest, RequestStatus, RequestPriority, RequestCategory, User } from '../../core/models';
 import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/models';
@@ -26,6 +28,7 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
     RouterModule,
     ReactiveFormsModule,
     MatTableModule,
+    MatSortModule,
     MatPaginatorModule,
     MatFormFieldModule,
     MatInputModule,
@@ -41,12 +44,26 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
       <div>
         <h1 class="page-title">Support Dashboard</h1>
         <p class="page-subtitle">
-          {{ currentUser?.role === 'manager' ? 'All requests across all agents' : 'Requests assigned to you' }}
+          {{ currentUser?.role === 'manager' ? 'All requests across all agents' : 'Your requests and available work' }}
         </p>
       </div>
     </div>
 
-    <div class="stats-grid" *ngIf="!isLoading">
+    <div *ngIf="statsLoading && !serverStats" class="stats-loading" role="status">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span>Loading support summary…</span>
+    </div>
+    <div *ngIf="statsError && !serverStats" class="error-container" role="alert">
+      <mat-icon class="error-icon">error_outline</mat-icon>
+      <p>Support summary could not be refreshed.</p>
+      <button mat-stroked-button type="button" (click)="loadStats()">Retry summary</button>
+    </div>
+    <div *ngIf="statsError && serverStats" class="stats-warning" role="alert">
+      The latest summary could not be refreshed; displayed counts may be stale.
+      <button mat-button type="button" (click)="loadStats()">Retry</button>
+    </div>
+
+    <div class="stats-grid" *ngIf="serverStats">
       <mat-card class="stat-card stat-total">
         <mat-card-content>
           <div class="stat-icon"><mat-icon>inbox</mat-icon></div>
@@ -90,7 +107,7 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
         <div class="filters-row">
           <mat-form-field appearance="outline" class="search-field">
             <mat-label>Search requests</mat-label>
-            <input matInput [formControl]="searchControl" id="search-input" placeholder="Search by title…" />
+            <input matInput [formControl]="searchControl" id="search-input" placeholder="Title, description, or reference…" />
             <mat-icon matSuffix>search</mat-icon>
           </mat-form-field>
 
@@ -145,7 +162,17 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
       </div>
 
       <div *ngIf="!isLoading && !error && requests.length > 0" class="table-wrapper">
-        <table mat-table [dataSource]="requests" class="requests-table">
+        <table
+          mat-table
+          [dataSource]="requests"
+          class="requests-table"
+          matSort
+          matSortDisableClear
+          [matSortActive]="sortActive"
+          [matSortDirection]="sortDirection"
+          (matSortChange)="onSort($event)"
+          aria-label="Support requests, sortable by reference, title, category, priority, status, or update time"
+        >
 
           <ng-container matColumnDef="reference">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Reference</th>
@@ -210,6 +237,7 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
       <mat-paginator
         *ngIf="!isLoading && !error && total > 0"
         [length]="total"
+        [pageIndex]="pageIndex"
         [pageSize]="pageSize"
         [pageSizeOptions]="[10, 25, 50]"
         (page)="onPage($event)"
@@ -392,7 +420,14 @@ import { STATUS_LABELS, PRIORITY_LABELS, CATEGORY_LABELS } from '../../core/mode
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private requestsService = inject(RequestsService);
+  private statsService = inject(StatsService);
   private authService = inject(AuthService);
+  private requestLoadSequence = 0;
+  private statsLoadSequence = 0;
+  private refreshSubscription?: Subscription;
+  serverStats: WorkspaceStats | null = null;
+  statsLoading = true;
+  statsError = false;
 
   requests: SupportRequest[] = [];
   total = 0;
@@ -407,6 +442,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   pageSize = 10;
   pageIndex = 0;
+  sortActive = 'updatedAt';
+  sortDirection: RequestSortDirection = 'desc';
+  sortField: RequestSortField = 'updated_at';
 
   displayedColumns = ['reference', 'title', 'category', 'priority', 'status', 'assignedAgentId', 'updatedAt', 'actions'];
 
@@ -424,15 +462,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadAgents();
     this.loadRequests();
+    this.loadStats();
     this.subs.push(
       this.searchControl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
       this.statusControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
       this.priorityControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
       this.categoryControl.valueChanges.subscribe(() => { this.pageIndex = 0; this.loadRequests(); }),
     );
+    this.refreshSubscription = interval(30_000).subscribe(() => {
+      if (document.hidden) return;
+      this.loadRequests(true);
+      this.loadStats();
+    });
   }
 
-  ngOnDestroy(): void { this.subs.forEach((s) => s.unsubscribe()); }
+  ngOnDestroy(): void {
+    this.subs.forEach((subscription) => subscription.unsubscribe());
+    this.refreshSubscription?.unsubscribe();
+    this.requestLoadSequence += 1;
+    this.statsLoadSequence += 1;
+  }
 
   loadAgents(): void {
     this.requestsService.getAllAgentsForLookup().subscribe({
@@ -443,9 +492,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadRequests(): void {
-    this.isLoading = true;
-    this.error = '';
+  loadRequests(quiet = false): void {
+    const sequence = ++this.requestLoadSequence;
+    if (!quiet) {
+      this.isLoading = true;
+      this.error = '';
+    }
     const user = this.currentUser;
     const isManager = user?.role === 'manager';
     const agentId = user?.role === 'agent' ? user.id : undefined;
@@ -456,26 +508,73 @@ export class DashboardComponent implements OnInit, OnDestroy {
       q: this.searchControl.value || undefined,
     };
 
-    this.requestsService.getAll(filters, agentId, isManager, this.pageIndex + 1, this.pageSize).subscribe({
+    this.requestsService.getAll(
+      filters,
+      agentId,
+      isManager,
+      this.pageIndex + 1,
+      this.pageSize,
+      this.sortField,
+      this.sortDirection,
+    ).subscribe({
       next: (page) => {
+        if (sequence !== this.requestLoadSequence) return;
         this.requests = page.data;
         this.total = page.total;
         this.isLoading = false;
       },
       error: () => {
+        if (sequence !== this.requestLoadSequence || quiet) return;
         this.error = 'Failed to load requests. Please try again.';
         this.isLoading = false;
       },
     });
   }
 
+  loadStats(): void {
+    const sequence = ++this.statsLoadSequence;
+    this.statsLoading = true;
+    this.statsService.getStats().subscribe({
+      next: (stats) => {
+        if (sequence !== this.statsLoadSequence) return;
+        this.serverStats = stats;
+        this.statsError = false;
+        this.statsLoading = false;
+      },
+      error: () => {
+        if (sequence !== this.statsLoadSequence) return;
+        this.statsError = true;
+        this.statsLoading = false;
+      },
+    });
+  }
+
   get stats() {
-    return {
+    return this.serverStats ?? {
       total: this.total,
-      open: this.requests.filter((r) => r.status === 'open').length,
-      inProgress: this.requests.filter((r) => r.status === 'in_progress').length,
-      urgent: this.requests.filter((r) => r.priority === 'urgent').length,
+      open: this.requests.filter((request) => request.status === 'open').length,
+      inProgress: this.requests.filter((request) => request.status === 'in_progress').length,
+      urgent: this.requests.filter((request) => request.priority === 'urgent').length,
     };
+  }
+
+  onSort(sort: Sort): void {
+    if (!sort.direction) return;
+    const fields: Record<string, RequestSortField> = {
+      reference: 'reference',
+      title: 'title',
+      category: 'category',
+      priority: 'priority',
+      status: 'status',
+      updatedAt: 'updated_at',
+    };
+    const field = fields[sort.active];
+    if (!field) return;
+    this.sortActive = sort.active;
+    this.sortField = field;
+    this.sortDirection = sort.direction;
+    this.pageIndex = 0;
+    this.loadRequests();
   }
 
   clearFilters(): void {

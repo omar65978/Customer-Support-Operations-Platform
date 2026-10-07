@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchMyRequests,
   fetchRequest,
@@ -8,6 +8,9 @@ import {
 } from "../api/requests";
 import type { SupportRequest, NewRequestPayload } from "../types";
 
+const PAGE_SIZE = 5;
+const REFRESH_INTERVAL_MS = 30_000;
+
 export function useRequests(customerId: string) {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [total, setTotal] = useState(0);
@@ -15,48 +18,60 @@ export function useRequests(customerId: string) {
   const [filters, setFilters] = useState<RequestFilters>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const PAGE_SIZE = 5;
+  const loadSequence = useRef(0);
 
   const load = useCallback(
-    async (p: number, f: RequestFilters) => {
+    async (requestedPage: number, requestedFilters: RequestFilters, quiet = false) => {
       if (!customerId) return;
-      setIsLoading(true);
-      setError(null);
+      const sequence = ++loadSequence.current;
+      if (!quiet) {
+        setIsLoading(true);
+        setError(null);
+      }
       try {
-        const result = await fetchMyRequests(f, p, PAGE_SIZE);
+        const result = await fetchMyRequests(requestedFilters, requestedPage, PAGE_SIZE, customerId);
+        if (sequence !== loadSequence.current) return;
         setRequests(result.data);
         setTotal(result.total);
       } catch {
-        setError("Failed to load your requests. Please try again.");
+        if (sequence === loadSequence.current && !quiet) {
+          setError("Failed to load your requests. Please try again.");
+        }
       } finally {
-        setIsLoading(false);
+        if (sequence === loadSequence.current && !quiet) setIsLoading(false);
       }
     },
-    [customerId]
+    [customerId],
   );
 
   useEffect(() => {
     load(page, filters);
   }, [page, filters, load]);
 
-  const applyFilters = useCallback(
-    (newFilters: RequestFilters) => {
-      setFilters(newFilters);
-      setPage(1);
-    },
-    []
-  );
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load(page, filters, true);
+    }, REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [page, filters, load]);
 
-  const goToPage = useCallback((p: number) => setPage(p), []);
+  const applyFilters = useCallback((newFilters: RequestFilters) => {
+    setFilters(newFilters);
+    setPage(1);
+  }, []);
+
+  const goToPage = useCallback((requestedPage: number) => {
+    setPage(Math.max(1, Math.min(requestedPage, Math.max(1, Math.ceil(total / PAGE_SIZE)))));
+  }, [total]);
 
   const create = useCallback(
     async (payload: NewRequestPayload) => {
-      const newReq = await createRequest(payload, customerId);
-      load(1, filters);
+      const newReq = await createRequest(payload);
       setPage(1);
+      await load(1, filters);
       return newReq;
     },
-    [customerId, filters, load]
+    [filters, load],
   );
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -106,7 +121,7 @@ export function useRequest(id: string) {
       setRequest(updated);
       return updated;
     },
-    [id]
+    [id],
   );
 
   return { request, isLoading, error, reload: load, updateStatus };

@@ -1,3 +1,10 @@
+# Environment configuration
+.env
+**/.env
+!.env.example
+!**/.env.example
+support-workspace/public/runtime-config.js
+
 # Node dependencies
 node_modules/
 **/node_modules/

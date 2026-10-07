@@ -7,14 +7,21 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser } from "../types";
-import { login as apiLogin, register as apiRegister } from "../api/auth";
+import {
+  clearAuthSession,
+  login as apiLogin,
+  register as apiRegister,
+  restoreSession,
+  revokeAuthSession,
+  saveAuthSession,
+} from "../api/auth";
 import type { LoginCredentials, RegisterPayload } from "../types";
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -25,38 +32,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
-    if (stored && token) {
-      try {
-        const parsed = JSON.parse(stored) as AuthUser;
-        setUser({ ...parsed, accessToken: token });
-      } catch {
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
-      }
+    let isCurrent = true;
+    const accessToken = localStorage.getItem("token");
+    if (!accessToken) {
+      setIsLoading(false);
+      return () => { isCurrent = false; };
     }
-    setIsLoading(false);
+
+    restoreSession()
+      .then((authUser) => {
+        if (!isCurrent) return;
+        if (!authUser || authUser.role !== "customer") throw new Error("This portal is for customer accounts only.");
+        saveAuthSession(authUser);
+        setUser(authUser);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        clearAuthSession();
+        setUser(null);
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+
+    return () => { isCurrent = false; };
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     const authUser = await apiLogin(credentials);
-    localStorage.setItem("token", authUser.accessToken);
-    localStorage.setItem("user", JSON.stringify(authUser));
+    if (authUser.role !== "customer") {
+      revokeAuthSession(authUser.accessToken);
+      throw new Error("This portal is for customer accounts only. Use the Support Workspace for staff accounts.");
+    }
+    saveAuthSession(authUser);
     setUser(authUser);
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {
     const authUser = await apiRegister(payload);
-    localStorage.setItem("token", authUser.accessToken);
-    localStorage.setItem("user", JSON.stringify(authUser));
+    if (!authUser) return false;
+    if (authUser.role !== "customer") {
+      revokeAuthSession(authUser.accessToken);
+      throw new Error("New portal accounts must have the customer role.");
+    }
+    saveAuthSession(authUser);
     setUser(authUser);
+    return true;
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    const accessToken = localStorage.getItem("token") ?? "";
+    clearAuthSession();
     setUser(null);
+    revokeAuthSession(accessToken);
   }, []);
 
   return (
