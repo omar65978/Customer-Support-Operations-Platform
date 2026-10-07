@@ -4,7 +4,23 @@ import userEvent from '@testing-library/user-event';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import * as authApi from '../api/auth';
 
-vi.mock('../api/auth');
+vi.mock('../api/auth', () => ({
+  login: vi.fn(),
+  register: vi.fn(),
+  restoreSession: vi.fn(),
+  refreshAuthSession: vi.fn(),
+  saveAuthSession: (authUser: { id: string; email: string; name: string; role: string; accessToken: string; refreshToken: string }) => {
+    localStorage.setItem('token', authUser.accessToken);
+    localStorage.setItem('refresh_token', authUser.refreshToken);
+    localStorage.setItem('user', JSON.stringify({ id: authUser.id, email: authUser.email, name: authUser.name, role: authUser.role }));
+  },
+  clearAuthSession: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+  },
+  revokeAuthSession: vi.fn(),
+}));
 
 function TestConsumer() {
   const { user, isLoading, login, logout } = useAuth();
@@ -18,12 +34,17 @@ function TestConsumer() {
       </div>
     );
   }
-  return (
-    <button onClick={() => login({ email: 'alice@example.com', password: 'password123' })}>
-      Sign in
-    </button>
-  );
+  return <button onClick={() => login({ email: 'alice@example.com', password: 'password123' })}>Sign in</button>;
 }
+
+const customerSession = {
+  id: 'u1',
+  email: 'alice@example.com',
+  name: 'Alice Johnson',
+  role: 'customer' as const,
+  accessToken: 'test-jwt-token',
+  refreshToken: 'test-refresh-token',
+};
 
 describe('AuthContext', () => {
   beforeEach(() => {
@@ -31,84 +52,61 @@ describe('AuthContext', () => {
     vi.resetAllMocks();
   });
 
-  it('initializes with no user when localStorage is empty', async () => {
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
+  it('initializes with no user when no session token exists', async () => {
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(authApi.restoreSession).not.toHaveBeenCalled();
   });
 
-  it('restores authenticated user from localStorage on mount', async () => {
-    const stored = { id: 'u1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' };
-    localStorage.setItem('user', JSON.stringify(stored));
-    localStorage.setItem('token', 'test-jwt-token');
+  it('revalidates the stored token and role with Supabase before restoring a session', async () => {
+    localStorage.setItem('user', JSON.stringify({ ...customerSession, role: 'manager' }));
+    localStorage.setItem('token', customerSession.accessToken);
+    vi.mocked(authApi.restoreSession).mockResolvedValueOnce(customerSession);
 
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('user-name')).toBeInTheDocument());
-    expect(screen.getByTestId('user-name')).toHaveTextContent('Alice Johnson');
+    await waitFor(() => expect(screen.getByTestId('user-name')).toHaveTextContent('Alice Johnson'));
     expect(screen.getByTestId('user-role')).toHaveTextContent('customer');
+    expect(localStorage.getItem('user')).toContain('"role":"customer"');
   });
 
-  it('sets user state and localStorage after successful login with nested user response', async () => {
-    const mockUser = {
-      id: 'u1', email: 'alice@example.com', name: 'Alice Johnson',
-      role: 'customer' as const, accessToken: 'new-token',
-    };
-    vi.mocked(authApi.login).mockResolvedValueOnce(mockUser);
+  it('sets user state and both session tokens after successful login', async () => {
+    const session = { ...customerSession, accessToken: 'new-token', refreshToken: 'new-refresh-token' };
+    vi.mocked(authApi.login).mockResolvedValueOnce(session);
 
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
-
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(screen.getByTestId('user-name')).toHaveTextContent('Alice Johnson'));
-    expect(screen.getByTestId('user-role')).toHaveTextContent('customer');
     expect(localStorage.getItem('token')).toBe('new-token');
+    expect(localStorage.getItem('refresh_token')).toBe('new-refresh-token');
   });
 
-  it('clears user state and localStorage after logout', async () => {
-    const stored = { id: 'u1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' };
-    localStorage.setItem('user', JSON.stringify(stored));
-    localStorage.setItem('token', 'test-jwt-token');
+  it('clears local session state on logout', async () => {
+    localStorage.setItem('user', JSON.stringify(customerSession));
+    localStorage.setItem('token', customerSession.accessToken);
+    vi.mocked(authApi.restoreSession).mockResolvedValueOnce(customerSession);
 
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
-
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
     await waitFor(() => expect(screen.getByTestId('user-name')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument());
     expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('refresh_token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
   });
 
-  it('handles corrupted localStorage gracefully', async () => {
-    localStorage.setItem('user', 'invalid-json{{{');
-    localStorage.setItem('token', 'some-token');
+  it('clears an unverified session instead of trusting its cached role', async () => {
+    localStorage.setItem('user', JSON.stringify({ ...customerSession, role: 'customer' }));
+    localStorage.setItem('token', customerSession.accessToken);
+    vi.mocked(authApi.restoreSession).mockRejectedValueOnce(new Error('Profile lookup failed'));
 
-    render(
-      <AuthProvider>
-        <TestConsumer />
-      </AuthProvider>
-    );
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
 
-    await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
-    expect(localStorage.getItem('user')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument());
+    expect(localStorage.getItem('token')).toBeNull();
   });
 });

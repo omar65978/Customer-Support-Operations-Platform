@@ -1,40 +1,60 @@
-import axios from "axios";
-
-const SUPABASE_URL = "https://iaukydzbcdmglqajllei.supabase.co/rest/v1";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhdWt5ZHpiY2RtZ2xxYWpsbGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyNjQzMzIsImV4cCI6MjEwMjg0MDMzMn0.GxvoOvmGBpVUOeRC2G3nN3POzX02KGD33hmh7joN_dc";
+import axios, { type InternalAxiosRequestConfig } from "axios";
+import { supabaseConfig } from "../config/supabase";
+import {
+  clearAuthSession,
+  refreshAuthSession,
+  saveAuthSession,
+} from "./auth";
+import type { AuthUser } from "../types";
 
 const apiClient = axios.create({
-  baseURL: SUPABASE_URL,
+  baseURL: supabaseConfig.restUrl,
   headers: {
     "Content-Type": "application/json",
-    "apikey": SUPABASE_ANON_KEY,
+    apikey: supabaseConfig.anonKey,
   },
 });
 
+let refreshPromise: Promise<AuthUser> | null = null;
+
 apiClient.interceptors.request.use((config) => {
+  config.headers.set("apikey", supabaseConfig.anonKey);
   const token = localStorage.getItem("token");
-
-  config.headers["apikey"] = SUPABASE_ANON_KEY;
-  
-  if (token && token.trim() !== "") {
-    config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    config.headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
-  }
-
+  if (token) config.headers.set("Authorization", `Bearer ${token}`);
+  else config.headers.delete("Authorization");
   return config;
 });
 
 apiClient.interceptors.response.use(
-  (r) => r,
-  (error) => {
-    if ((error.response?.status === 401 || error.response?.status === 403) && !window.location.pathname.includes("/login")) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
+  (response) => response,
+  async (error) => {
+    const config = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+    if (error.response?.status === 401 && config && !config._retry) {
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (refreshToken) {
+        config._retry = true;
+        refreshPromise ??= refreshAuthSession(refreshToken)
+          .then((authUser) => {
+            saveAuthSession(authUser);
+            return authUser;
+          })
+          .finally(() => { refreshPromise = null; });
+
+        try {
+          const authUser = await refreshPromise;
+          config.headers.set("Authorization", `Bearer ${authUser.accessToken}`);
+          return apiClient(config);
+        } catch {
+          clearAuthSession();
+          if (!window.location.pathname.includes("/login")) window.location.href = "/login";
+        }
+      } else if (localStorage.getItem("token")) {
+        clearAuthSession();
+        if (!window.location.pathname.includes("/login")) window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;
