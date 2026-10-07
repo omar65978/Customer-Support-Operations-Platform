@@ -6,8 +6,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subscription, interval } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { Subscription, interval, of } from 'rxjs';
+import { catchError, filter, switchMap } from 'rxjs/operators';
 import { StatsService, type WorkspaceStats } from '../../core/services/stats.service';
 
 @Component({
@@ -42,6 +42,11 @@ import { StatsService, type WorkspaceStats } from '../../core/services/stats.ser
       <mat-icon class="error-icon">error_outline</mat-icon>
       <p>{{ error }}</p>
       <button mat-flat-button color="primary" (click)="loadStats()">Retry</button>
+    </div>
+
+    <div *ngIf="error && stats" class="error-state summary-warning" role="alert">
+      <p>{{ error }}</p>
+      <button mat-stroked-button type="button" (click)="loadStats()">Retry summary</button>
     </div>
 
     <ng-container *ngIf="stats">
@@ -312,9 +317,21 @@ export class ManagerDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadStats();
-    this.pollSub = interval(30000).pipe(
-      switchMap(() => this.statsService.getStats())
-    ).subscribe({ next: (s) => { this.stats = s; } });
+    this.pollSub = interval(30_000).pipe(
+      filter(() => !document.hidden),
+      switchMap(() => this.statsService.getStats().pipe(
+        catchError(() => {
+          this.error = 'The latest support summary could not be refreshed.';
+          return of(null);
+        }),
+      )),
+    ).subscribe({
+      next: (stats) => {
+        if (!stats) return;
+        this.stats = stats;
+        this.error = '';
+      },
+    });
   }
 
   ngOnDestroy(): void { this.pollSub?.unsubscribe(); }

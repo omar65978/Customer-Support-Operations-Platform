@@ -47,7 +47,7 @@ export interface Attachment {
   uploaderName: string;
   uploaderRole: UserRole;
   originalName: string;
-  storedName: string;
+  storagePath: string;
   mimeType: string;
   size: number;
   createdAt: string;
