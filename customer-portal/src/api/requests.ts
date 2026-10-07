@@ -1,5 +1,5 @@
 import apiClient from "./axios";
-import type { NewRequestPayload, SupportRequest } from "../types";
+import type { SupportRequest, NewRequestPayload, User } from "../types";
 
 export interface RequestFilters {
   status?: string;
@@ -14,91 +14,115 @@ export interface RequestPage {
   pageSize: number;
 }
 
-function mapRequest(request: any): SupportRequest {
+function mapRequest(r: any): SupportRequest {
+  if (!r) return r;
   return {
-    ...request,
-    customerId: request.customer_id ?? request.customerId,
-    assignedAgentId: request.assigned_agent_id ?? request.assignedAgentId,
-    createdAt: request.created_at ?? request.createdAt,
-    updatedAt: request.updated_at ?? request.updatedAt,
-    resolvedAt: request.resolved_at ?? request.resolvedAt,
+    ...r,
+    customerId: r.customer_id ?? r.customerId,
+    assignedAgentId: r.assigned_agent_id ?? r.assignedAgentId,
+    createdAt: r.created_at ?? r.createdAt,
+    updatedAt: r.updated_at ?? r.updatedAt,
+    resolvedAt: r.resolved_at ?? r.resolvedAt,
   };
-}
-
-function requireReturnedRequest(data: any[]): SupportRequest {
-  if (!Array.isArray(data) || data.length === 0) {
-    throw new Error("The request could not be saved. It may have changed or you may not have permission.");
-  }
-  return mapRequest(data[0]);
 }
 
 export async function fetchMyRequests(
   filters: RequestFilters = {},
   page = 1,
-  pageSize = 5,
-  customerId?: string,
+  pageSize = 5
 ): Promise<RequestPage> {
   const params = new URLSearchParams();
-  params.set("select", "*");
+
   params.set("order", "updated_at.desc");
-  if (customerId) params.set("customer_id", `eq.${customerId}`);
+
   if (filters.status) params.set("status", `eq.${filters.status}`);
   if (filters.priority) params.set("priority", `eq.${filters.priority}`);
   if (filters.category) params.set("category", `eq.${filters.category}`);
 
-  const safePage = Math.max(1, Math.floor(Number.isFinite(page) ? page : 1));
-  const safePageSize = Math.min(50, Math.max(1, Math.floor(Number.isFinite(pageSize) ? pageSize : 5)));
-  const from = (safePage - 1) * safePageSize;
-  const to = from + safePageSize - 1;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const response = await apiClient.get<any[]>(`/requests?${params.toString()}`, {
     headers: {
-      Range: `${from}-${to}`,
-      Prefer: "count=exact",
+      "Range": `${from}-${to}`,
+      "Prefer": "count=exact",
     },
   });
 
   const contentRange = response.headers["content-range"];
-  const count = contentRange?.split("/")[1];
-  const total = count && count !== "*" ? Number.parseInt(count, 10) : response.data.length;
-  const data = Array.isArray(response.data) ? response.data.map(mapRequest) : [];
-  return { data, total: Number.isFinite(total) ? total : data.length, page: safePage, pageSize: safePageSize };
+  let total = 0;
+  if (contentRange) {
+    const parts = contentRange.split("/");
+    if (parts[1]) total = parseInt(parts[1], 10);
+  } else {
+    total = Array.isArray(response.data) ? response.data.length : 0;
+  }
+
+  const data: SupportRequest[] = Array.isArray(response.data)
+    ? response.data.map(mapRequest)
+    : [];
+
+  return { data, total, page, pageSize };
 }
 
 export async function fetchRequest(id: string): Promise<SupportRequest> {
-  const response = await apiClient.get<any[]>("/requests", {
-    params: { id: `eq.${id}`, select: "*", limit: 1 },
-  });
-  if (!Array.isArray(response.data) || response.data.length === 0) {
-    throw new Error("Request not found or access denied.");
-  }
+  const response = await apiClient.get<any[]>(`/requests?id=eq.${id}`);
   return mapRequest(response.data[0]);
 }
 
-export async function createRequest(payload: NewRequestPayload): Promise<SupportRequest> {
+export async function fetchAgents(): Promise<User[]> {
+  const response = await apiClient.get<User[]>(`/users?role=eq.agent`);
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function createRequest(
+  payload: NewRequestPayload,
+  customerId: string
+): Promise<SupportRequest> {
+  const agents = await fetchAgents();
+  const assignedAgentId =
+    agents.length > 0 ? agents[Math.floor(Math.random() * agents.length)].id : null;
+
+  const now = new Date().toISOString();
+  const reference = `REQ-${Math.floor(10000 + Math.random() * 90000)}`;
+
   const response = await apiClient.post<any[]>(
     "/requests",
     {
-      title: payload.title.trim(),
-      description: payload.description.trim(),
-      category: payload.category,
-      priority: payload.priority,
+      ...payload,
+      customer_id: customerId,
+      assigned_agent_id: assignedAgentId,
+      status: "open",
+      reference,
+      created_at: now,
+      updated_at: now,
+      resolved_at: null,
     },
-    { headers: { Prefer: "return=representation" } },
+    {
+      headers: {
+        Prefer: "return=representation",
+      },
+    }
   );
-  return requireReturnedRequest(response.data);
+  return mapRequest(response.data[0]);
 }
 
 export async function updateRequestStatus(
   id: string,
-  status: SupportRequest["status"],
+  status: SupportRequest["status"]
 ): Promise<SupportRequest> {
   const response = await apiClient.patch<any[]>(
-    "/requests",
-    { status },
+    `/requests?id=eq.${id}`,
     {
-      params: { id: `eq.${id}` },
-      headers: { Prefer: "return=representation" },
+      status,
+      updated_at: new Date().toISOString(),
+      resolved_at: status === "resolved" ? new Date().toISOString() : null,
     },
+    {
+      headers: {
+        Prefer: "return=representation",
+      },
+    }
   );
-  return requireReturnedRequest(response.data);
+  return mapRequest(response.data[0]);
 }

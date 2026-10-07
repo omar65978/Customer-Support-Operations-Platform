@@ -34,13 +34,8 @@
       try {
         await login({ email: email.trim(), password });
         navigate("/dashboard");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        setErrors({ general: message.includes("customer accounts only")
-          ? "This portal is for customer accounts only. Support employees should use the Support Workspace."
-          : message.includes("not configured")
-            ? message
-            : "Sign-in failed. Check your email, password, and account setup, then try again." });
+      } catch {
+        setErrors({ general: "Invalid email or password. Please try again." });
       } finally {
         setIsSubmitting(false);
       }
@@ -113,6 +108,11 @@
             </p>
           </div>
 
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-brand-200">
+            <p className="font-medium mb-1 text-brand-100">Demo credentials</p>
+            <p>alice@example.com · password123</p>
+            <p>bob@example.com · password123</p>
+          </div>
         </div>
       </div>
     );

@@ -90,6 +90,11 @@ import { AuthService } from '../../../core/services/auth.service';
           </mat-card-content>
         </mat-card>
 
+        <div class="demo-credentials">
+          <p class="demo-title">Demo accounts</p>
+          <p>agent1&#64;support.com · password123</p>
+          <p>manager&#64;support.com · password123</p>
+        </div>
       </div>
     </div>
   `,
@@ -198,6 +203,24 @@ import { AuthService } from '../../../core/services/auth.service';
       margin-bottom: 1rem;
     }
 
+    .demo-credentials {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      text-align: center;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.8125rem;
+    }
+
+    .demo-title {
+      color: rgba(255,255,255,0.9);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .demo-credentials p { margin: 2px 0; }
   `],
 })
 export class LoginComponent {
@@ -224,13 +247,8 @@ export class LoginComponent {
     const { email, password } = this.form.value as { email: string; password: string };
     this.auth.login({ email, password }).subscribe({
       next: () => this.router.navigate(['/dashboard']),
-      error: (error: Error) => {
-        const message = error?.message ?? '';
-        this.errorMessage = message.includes('support employees only')
-          ? 'This workspace is for support employees. Customers should use the Customer Portal.'
-          : message.includes('not configured')
-            ? message
-            : 'Sign-in failed. Check your email, password, and account setup, then try again.';
+      error: () => {
+        this.errorMessage = 'Invalid email or password. Please try again.';
         this.isSubmitting = false;
       },
     });

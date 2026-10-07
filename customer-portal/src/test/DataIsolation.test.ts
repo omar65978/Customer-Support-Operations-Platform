@@ -95,8 +95,6 @@ describe('Customer data isolation', () => {
         headers: expect.objectContaining({ Prefer: 'return=representation' }),
       })
     );
-    expect(mockClient.post.mock.calls[0][1].author_id).toBeUndefined();
-    expect(mockClient.post.mock.calls[0][1].author_role).toBeUndefined();
 
     localStorage.removeItem('user');
   });

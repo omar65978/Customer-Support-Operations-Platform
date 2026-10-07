@@ -1,20 +1,6 @@
-declare global {
-  interface Window {
-    __SUPPORT_WORKSPACE_CONFIG__?: {
-      supabaseUrl?: string;
-      supabaseAnonKey?: string;
-    };
-  }
-}
-
-const runtimeConfig = typeof window === 'undefined' ? undefined : window.__SUPPORT_WORKSPACE_CONFIG__;
-const supabaseUrl = runtimeConfig?.supabaseUrl?.trim().replace(/\/+$/, '') ?? '';
-const supabaseAnonKey = runtimeConfig?.supabaseAnonKey?.trim() ?? '';
-
 export const environment = {
   production: false,
-  supabaseUrl,
-  apiUrl: `${supabaseUrl}/rest/v1`,
-  supabaseAnonKey,
-  isSupabaseConfigured: Boolean(supabaseUrl && supabaseAnonKey),
+  supabaseUrl: 'https://iaukydzbcdmglqajllei.supabase.co',
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhdWt5ZHpiY2RtZ2xxYWpsbGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyNjQzMzIsImV4cCI6MjEwMjg0MDMzMn0.GxvoOvmGBpVUOeRC2G3nN3POzX02KGD33hmh7joN_dc',
+  apiUrl: 'https://iaukydzbcdmglqajllei.supabase.co/rest/v1'
 };

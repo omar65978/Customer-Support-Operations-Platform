@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ChangeEvent, useEffect, useCallback, useRef } from "react";
+import { useState, type FormEvent, type ChangeEvent, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { AppLayout } from "../components/layout/AppLayout";
@@ -10,15 +10,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { STATUS_DESCRIPTIONS, CATEGORY_LABELS } from "../utils/statusLabels";
 import { fetchRequest, updateRequestStatus } from "../api/requests";
 import { fetchMessages, sendMessage } from "../api/messages";
-import { fetchAttachments } from "../api/attachments";
-import { AttachmentPanel } from "../components/requests/AttachmentPanel";
-import type { Attachment, SupportRequest, Message } from "../types";
-
-function isAccessDenied(error: unknown): boolean {
-  if (error instanceof Error && error.message.toLowerCase().includes("not found or access denied")) return true;
-  return typeof error === "object" && error !== null && "response" in error
-    && (error as { response?: { status?: number } }).response?.status === 403;
-}
+import type { SupportRequest, Message } from "../types";
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -44,10 +36,6 @@ export function RequestDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [messagesError, setMessagesError] = useState("");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [attachmentsLoading, setAttachmentsLoading] = useState(true);
-  const [attachmentsError, setAttachmentsError] = useState("");
-  const loadSequence = useRef(0);
 
   const [reply, setReply] = useState("");
   const [replyError, setReplyError] = useState("");
@@ -62,76 +50,30 @@ export function RequestDetailPage() {
     }
   }, [showSuccess]);
 
-  const loadData = useCallback(async (quiet = false) => {
+  const loadData = useCallback(async () => {
     if (!id) return;
-    const sequence = ++loadSequence.current;
-    if (!quiet) {
-      setIsLoading(true);
-      setMessagesLoading(true);
-      setAttachmentsLoading(true);
-      setError("");
-      setMessagesError("");
-      setAttachmentsError("");
-    }
+    setIsLoading(true);
+    setMessagesLoading(true);
+    setError("");
+    setMessagesError("");
     try {
-      const reqData = await fetchRequest(id);
-      if (sequence !== loadSequence.current) return;
-      setRequest(reqData);
-      const [messagesResult, attachmentsResult] = await Promise.allSettled([
+      const [reqData, msgData] = await Promise.all([
+        fetchRequest(id),
         fetchMessages(id),
-        fetchAttachments(id),
       ]);
-      if (sequence !== loadSequence.current) return;
-      if (messagesResult.status === "fulfilled") {
-        setMessages((previous) => {
-          const records = quiet ? [...previous, ...messagesResult.value] : messagesResult.value;
-          return [...new Map(records.map((message) => [message.id, message])).values()]
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        });
-        setMessagesError("");
-      } else if (!quiet) {
-        setMessagesError("Failed to load messages.");
-      }
-      if (attachmentsResult.status === "fulfilled") {
-        setAttachments((previous) => {
-          const records = quiet ? [...previous, ...attachmentsResult.value] : attachmentsResult.value;
-          return [...new Map(records.map((attachment) => [attachment.id, attachment])).values()]
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        });
-        setAttachmentsError("");
-      } else if (!quiet) {
-        setAttachmentsError("Failed to load attachments.");
-      }
-    } catch (error) {
-      if (sequence === loadSequence.current && (!quiet || isAccessDenied(error))) {
-        setError(isAccessDenied(error) ? "This request is unavailable or you no longer have access." : "Failed to load request details.");
-        if (isAccessDenied(error)) {
-          setRequest(null);
-          setMessages([]);
-          setAttachments([]);
-        }
-      }
+      setRequest(reqData);
+      setMessages(msgData.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+    } catch {
+      setError("Failed to load request details.");
+      setMessagesError("Failed to load messages.");
     } finally {
-      if (sequence === loadSequence.current && !quiet) {
-        setIsLoading(false);
-        setMessagesLoading(false);
-        setAttachmentsLoading(false);
-      } else if (sequence === loadSequence.current) {
-        setMessagesLoading(false);
-        setAttachmentsLoading(false);
-      }
+      setIsLoading(false);
+      setMessagesLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    void loadData();
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void loadData(true);
-    }, 30_000);
-    return () => {
-      window.clearInterval(timer);
-      loadSequence.current += 1;
-    };
+    loadData();
   }, [loadData]);
 
   const canReply = request && !["resolved", "closed"].includes(request.status);
@@ -150,10 +92,11 @@ export function RequestDetailPage() {
     setIsSending(true);
     try {
       const msg = await sendMessage(id!, { content: reply.trim() });
-      setMessages((prev) => prev.some((existing) => existing.id === msg.id) ? prev : [...prev, msg]);
+      setMessages((prev) => [...prev, msg]);
       setReply("");
       if (request?.status === "waiting_for_customer") {
-        setRequest({ ...request, status: "in_progress", updatedAt: msg.createdAt, resolvedAt: null });
+        const updated = await updateRequestStatus(id!, "in_progress");
+        setRequest(updated);
       }
     } catch {
       setReplyError("Failed to send your message. Please try again.");
@@ -234,23 +177,6 @@ export function RequestDetailPage() {
               {!messagesLoading && !messagesError && (
                 <MessageThread messages={messages} currentUserId={user?.id || ""} />
               )}
-            </div>
-
-            <div className="border-t border-slate-100 px-6 py-4">
-              <AttachmentPanel
-                key={request.id}
-                requestId={request.id}
-                attachments={attachments}
-                canUpload={!['resolved', 'closed'].includes(request.status)}
-                isLoading={attachmentsLoading}
-                loadError={attachmentsError}
-                onRetry={() => loadData(true)}
-                onUploaded={(attachment) => {
-                  if (attachment.requestId === request.id) {
-                    setAttachments((previous) => [attachment, ...previous.filter((existing) => existing.id !== attachment.id)]);
-                  }
-                }}
-              />
             </div>
 
             {canReply && (

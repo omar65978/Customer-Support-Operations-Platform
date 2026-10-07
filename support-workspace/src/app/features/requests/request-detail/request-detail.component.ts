@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -15,12 +15,10 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { Subscription, interval } from 'rxjs';
 import { RequestsService } from '../../../core/services/requests.service';
-import { AttachmentsService } from '../../../core/services/attachments.service';
 import { MessagesService } from '../../../core/services/messages.service';
 import { AuthService } from '../../../core/services/auth.service';
-import type { SupportRequest, Message, Attachment, User, RequestStatus } from '../../../core/models';
+import type { SupportRequest, Message, User, RequestStatus } from '../../../core/models';
 import { STATUS_LABELS, STATUS_TRANSITIONS, CATEGORY_LABELS, PRIORITY_LABELS } from '../../../core/models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -90,12 +88,8 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                 <div *ngIf="messagesLoading" class="loading-center">
                   <mat-spinner diameter="32"></mat-spinner>
                 </div>
-                <div *ngIf="messagesError" class="attachment-error" role="alert">
-                  <span>{{ messagesError }}</span>
-                  <button mat-button type="button" (click)="loadMessages(currentRequestId)">Retry</button>
-                </div>
 
-                <div *ngIf="!messagesLoading && !messagesError && messages.length === 0" class="empty-messages">
+                <div *ngIf="!messagesLoading && messages.length === 0" class="empty-messages">
                   <mat-icon>chat_bubble_outline</mat-icon>
                   <p>No messages yet</p>
                 </div>
@@ -118,7 +112,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               </div>
 
               <mat-divider></mat-divider>
-              <mat-card-content class="reply-area" *ngIf="canWorkOnRequest && request.status !== 'closed' && request.status !== 'resolved'">
+              <mat-card-content class="reply-area" *ngIf="request.status !== 'closed'">
                 <mat-tab-group id="reply-tabs" (selectedTabChange)="isInternalNote = $event.index === 1">
                   <mat-tab label="Reply to Customer">
                     <div class="reply-tab-content">
@@ -137,7 +131,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                       </div>
                     </div>
                   </mat-tab>
-                  <mat-tab label="Internal Note">
+                  <mat-tab label="Internal Note" *ngIf="request.status !== 'resolved'">
                     <div class="reply-tab-content internal-tab">
                       <div class="internal-notice">
                         <mat-icon>lock</mat-icon>
@@ -162,61 +156,6 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               <mat-card-content *ngIf="request.status === 'closed'" class="closed-notice">
                 <mat-icon>lock</mat-icon>
                 This request is closed. No further replies can be added.
-              </mat-card-content>
-              <mat-card-content *ngIf="request.status === 'resolved'" class="closed-notice">
-                <mat-icon>check_circle</mat-icon>
-                This request is resolved. Reactivate it before sending another message.
-              </mat-card-content>
-              <mat-card-content *ngIf="!canWorkOnRequest && request.status !== 'closed' && request.status !== 'resolved'" class="closed-notice">
-                <mat-icon>person_add</mat-icon>
-                Claim this available request before replying or adding an internal note.
-              </mat-card-content>
-            </mat-card>
-
-            <mat-card class="sidebar-card attachments-card">
-              <mat-card-header>
-                <mat-card-title>Attachments</mat-card-title>
-                <mat-card-subtitle>Private files for this request</mat-card-subtitle>
-              </mat-card-header>
-              <mat-divider></mat-divider>
-              <mat-card-content>
-                <div *ngIf="attachmentsLoading" class="loading-center">
-                  <mat-spinner diameter="28"></mat-spinner>
-                </div>
-                <div *ngIf="attachmentsError" class="attachment-error" role="alert">
-                  <span>{{ attachmentsError }}</span>
-                  <button mat-button type="button" (click)="loadAttachments(currentRequestId)">Retry</button>
-                </div>
-                <p *ngIf="!attachmentsLoading && !attachmentsError && attachments.length === 0" class="empty-attachments">
-                  No attachments yet.
-                </p>
-                <ul *ngIf="attachments.length > 0" class="attachment-list" aria-label="Request attachments">
-                  <li *ngFor="let attachment of attachments" class="attachment-item">
-                    <div class="attachment-description">
-                      <span class="attachment-name">{{ attachment.originalName }}</span>
-                      <span class="attachment-meta">{{ formatBytes(attachment.size) }} · {{ attachment.uploaderName }}</span>
-                    </div>
-                    <button mat-button type="button" (click)="downloadAttachment(attachment)" [disabled]="isDownloadingAttachment">
-                      {{ downloadingAttachmentId === attachment.id ? 'Downloading…' : 'Download' }}
-                    </button>
-                  </li>
-                </ul>
-                <div *ngIf="canUploadAttachment" class="attachment-upload">
-                  <label for="request-attachment-upload" class="attachment-upload-label">
-                    <mat-icon>attach_file</mat-icon>
-                    {{ isUploadingAttachment ? 'Uploading…' : 'Attach file' }}
-                  </label>
-                  <input
-                    id="request-attachment-upload"
-                    class="attachment-upload-input"
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
-                    [disabled]="isUploadingAttachment"
-                    (change)="uploadAttachment($event)"
-                    aria-label="Upload a request attachment"
-                  />
-                  <p class="attachment-meta">Up to 10 MB: images, PDF, text, CSV, Word, or Excel.</p>
-                </div>
               </mat-card-content>
             </mat-card>
           </div>
@@ -263,7 +202,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               <mat-divider></mat-divider>
               <mat-card-content class="actions-content">
 
-                <div class="action-section" *ngIf="canWorkOnRequest">
+                <div class="action-section">
                   <label class="action-label">Update Status</label>
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>Change status to…</mat-label>
@@ -288,14 +227,14 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                     class="full-width"
                     id="claim-btn"
                     (click)="claimRequest()"
-                    [disabled]="isClaiming"
-                    *ngIf="currentUser?.role === 'agent' && !request.assignedAgentId && request.status !== 'resolved' && request.status !== 'closed'"
+                    [disabled]="request.assignedAgentId === currentUserId || isClaiming"
+                    *ngIf="currentUser?.role === 'agent' || currentUser?.role === 'manager'"
                   >
                     <mat-icon>person_add</mat-icon>
-                    {{ isClaiming ? 'Claiming…' : 'Claim Available Request' }}
+                    {{ request.assignedAgentId === currentUserId ? 'You own this' : 'Claim Request' }}
                   </button>
 
-                  <div *ngIf="currentUser?.role === 'manager' && request.status !== 'closed'" class="reassign-section">
+                  <div *ngIf="currentUser?.role === 'manager'" class="reassign-section">
                     <mat-form-field appearance="outline" class="full-width" style="margin-top: 10px;">
                       <mat-label>Reassign to agent</mat-label>
                       <mat-select [formControl]="reassignControl" id="reassign-select">
@@ -313,7 +252,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 
                 <mat-divider></mat-divider>
 
-                <div class="action-section" *ngIf="canWorkOnRequest && request.status !== 'closed'">
+                <div class="action-section" *ngIf="request.status !== 'closed'">
                   <label class="action-label danger-label">Danger Zone</label>
                   <button mat-stroked-button color="warn" class="full-width" (click)="closeRequest()" id="close-request-btn">
                     <mat-icon>close</mat-icon>
@@ -590,44 +529,20 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     .full-width { width: 100%; }
 
     .reassign-section { display: flex; flex-direction: column; gap: 8px; }
-    .attachments-card { margin-top: 16px; }
-    .attachment-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #b91c1c; font-size: 0.85rem; }
-    .empty-attachments { color: #64748b; font-size: 0.875rem; }
-    .attachment-list { list-style: none; margin: 0; padding: 0; }
-    .attachment-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
-    .attachment-description { display: flex; min-width: 0; flex-direction: column; }
-    .attachment-name { overflow: hidden; color: #334155; font-size: 0.85rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-    .attachment-meta { color: #64748b; font-size: 0.75rem; }
-    .attachment-upload { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 16px; }
-    .attachment-upload-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border: 1px solid #cbd5e1; border-radius: 10px; padding: 8px 12px; color: #334155; font-size: 0.85rem; font-weight: 600; }
-    .attachment-upload-input { max-width: 100%; font-size: 0.8rem; }
   `],
 })
-export class RequestDetailComponent implements OnInit, OnDestroy {
+export class RequestDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private requestsService = inject(RequestsService);
   private messagesService = inject(MessagesService);
-  private attachmentsService = inject(AttachmentsService);
   private authService = inject(AuthService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
 
   request: SupportRequest | null = null;
   messages: Message[] = [];
-  attachments: Attachment[] = [];
   agents: User[] = [];
-  currentRequestId = '';
-  attachmentsLoading = true;
-  attachmentsError = '';
-  messagesError = '';
-  isUploadingAttachment = false;
-  isDownloadingAttachment = false;
-  downloadingAttachmentId = '';
-  private requestLoadSequence = 0;
-  private messageLoadSequence = 0;
-  private attachmentLoadSequence = 0;
-  private subscriptions: Subscription[] = [];
   agentMap: Record<string, string> = {};
   availableTransitions: { value: RequestStatus; label: string }[] = [];
 
@@ -650,49 +565,17 @@ export class RequestDetailComponent implements OnInit, OnDestroy {
     return this.currentUser?.id ?? '';
   }
 
-  get canWorkOnRequest(): boolean {
-    return this.currentUser?.role === 'manager' || this.request?.assignedAgentId === this.currentUserId;
-  }
-
-  get canUploadAttachment(): boolean {
-    return Boolean(this.request
-      && !['resolved', 'closed'].includes(this.request.status)
-      && this.canWorkOnRequest);
-  }
-
   ngOnInit(): void {
-    this.subscriptions.push(this.route.paramMap.subscribe((params) => {
-      const id = params.get('id');
-      if (!id || id === this.currentRequestId) return;
-      this.currentRequestId = id;
-      this.request = null;
-      this.messages = [];
-      this.attachments = [];
-      this.error = '';
-      this.loadRequest(id);
-      this.loadMessages(id);
-      this.loadAttachments(id);
-    }));
-    this.subscriptions.push(interval(30_000).subscribe(() => {
-      if (!this.currentRequestId || document.hidden) return;
-      this.loadRequest(this.currentRequestId, true);
-      this.loadMessages(this.currentRequestId, true);
-      this.loadAttachments(this.currentRequestId, true);
-    }));
+    const id = this.route.snapshot.paramMap.get('id')!;
+    this.loadRequest(id);
+    this.loadMessages(id);
     this.authService.getAllAgents().subscribe({
       next: (users) => {
         this.agents = users;
         this.agentMap = {};
-        users.forEach((user) => { this.agentMap[user.id] = user.name; });
+        users.forEach((u) => { this.agentMap[u.id] = u.name; });
       },
     });
-  }
-
-  ngOnDestroy(): void {
-    this.subscriptions.forEach((subscription) => subscription.unsubscribe());
-    this.requestLoadSequence += 1;
-    this.messageLoadSequence += 1;
-    this.attachmentLoadSequence += 1;
   }
 
   private computeTransitions(): void {
@@ -704,102 +587,45 @@ export class RequestDetailComponent implements OnInit, OnDestroy {
     this.availableTransitions = nexts.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
   }
 
-  loadRequest(id: string, quiet = false): void {
-    const sequence = ++this.requestLoadSequence;
-    if (!quiet) {
-      this.isLoading = true;
-      this.error = '';
-    }
+  loadRequest(id: string): void {
+    this.isLoading = true;
     this.requestsService.getOne(id).subscribe({
-      next: (request) => {
-        if (sequence !== this.requestLoadSequence || id !== this.currentRequestId) return;
-        this.request = request;
+      next: (r) => {
+        this.request = r;
         this.computeTransitions();
         this.isLoading = false;
       },
-      error: (error: unknown) => {
-        if (sequence !== this.requestLoadSequence || id !== this.currentRequestId) return;
-        const accessDenied = error instanceof Error && error.message.includes('not found or access denied')
-          || typeof error === 'object' && error !== null && 'status' in error && (error as { status?: number }).status === 403;
-        if (!quiet || accessDenied || !this.request) {
-          this.error = accessDenied ? 'This request is unavailable or you no longer have access.' : 'Request not found or you do not have access.';
-        }
-        if (accessDenied) {
-          this.request = null;
-          this.messages = [];
-          this.attachments = [];
-          this.messageLoadSequence += 1;
-          this.attachmentLoadSequence += 1;
-        }
-        this.isLoading = false;
-      },
+      error: () => { this.error = 'Request not found or you do not have access.'; this.isLoading = false; },
     });
   }
 
-  loadMessages(id: string, quiet = false): void {
-    const sequence = ++this.messageLoadSequence;
-    if (!quiet) {
-      this.messagesLoading = true;
-      this.messagesError = '';
-    }
+  loadMessages(id: string): void {
+    this.messagesLoading = true;
     this.messagesService.getForRequest(id).subscribe({
-      next: (messages) => {
-        if (sequence !== this.messageLoadSequence || id !== this.currentRequestId) return;
-        const records = quiet ? [...this.messages, ...messages] : messages;
-        this.messages = [...new Map(records.map((message) => [message.id, message])).values()]
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        this.messagesError = '';
+      next: (msgs) => {
+        this.messages = msgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
         this.messagesLoading = false;
       },
-      error: () => {
-        if (sequence !== this.messageLoadSequence || id !== this.currentRequestId) return;
-        if (!quiet) this.messagesError = 'Failed to load messages. Please retry.';
-        this.messagesLoading = false;
-      },
-    });
-  }
-
-  loadAttachments(id: string, quiet = false): void {
-    const sequence = ++this.attachmentLoadSequence;
-    if (!quiet) {
-      this.attachmentsLoading = true;
-      this.attachmentsError = '';
-    }
-    this.attachmentsService.getForRequest(id).subscribe({
-      next: (attachments) => {
-        if (sequence !== this.attachmentLoadSequence || id !== this.currentRequestId) return;
-        const records = quiet ? [...this.attachments, ...attachments] : attachments;
-        this.attachments = [...new Map(records.map((attachment) => [attachment.id, attachment])).values()]
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        this.attachmentsError = '';
-        this.attachmentsLoading = false;
-      },
-      error: () => {
-        if (sequence !== this.attachmentLoadSequence || id !== this.currentRequestId) return;
-        if (!quiet) this.attachmentsError = 'Failed to load attachments. Please retry.';
-        this.attachmentsLoading = false;
-      },
+      error: () => { this.messagesLoading = false; },
     });
   }
 
   sendReply(isInternal: boolean): void {
-    const content = this.replyControl.value?.trim() ?? '';
-    if (content.length < 5) {
+    if (!this.replyControl.value?.trim()) {
       this.replyControl.markAsTouched();
-      this.snackBar.open('Message must contain at least five non-space characters.', 'Dismiss', { duration: 4000 });
       return;
     }
     this.isSending = true;
+    const content = this.replyControl.value.trim();
     this.messagesService.sendMessage(
       this.request!.id, content, isInternal
     ).subscribe({
       next: (msg) => {
-        if (!this.messages.some((existing) => existing.id === msg.id)) this.messages = [...this.messages, msg];
+        this.messages = [...this.messages, msg];
         this.replyControl.reset();
         this.isSending = false;
-        if (!isInternal && this.request) {
-          this.request = { ...this.request, status: 'waiting_for_customer', updatedAt: msg.createdAt, resolvedAt: null };
-          this.computeTransitions();
+        if (!isInternal && this.request?.status === 'waiting_for_customer') {
+          this.requestsService.updateStatus(this.request.id, 'in_progress').subscribe((r) => { this.request = r; });
         }
         this.snackBar.open(isInternal ? 'Internal note added' : 'Reply sent', 'Dismiss', { duration: 3000 });
       },
@@ -830,39 +656,29 @@ export class RequestDetailComponent implements OnInit, OnDestroy {
   }
 
   claimRequest(): void {
-    if (!this.request || this.currentUser?.role !== 'agent' || this.request.assignedAgentId
-      || ['resolved', 'closed'].includes(this.request.status)) return;
     this.isClaiming = true;
-    this.requestsService.assign(this.request.id, this.currentUser.id, false, this.request.status).subscribe({
-      next: (request) => {
-        this.request = request;
+    this.requestsService.assign(this.request!.id, this.currentUser!.id).subscribe({
+      next: (r) => {
+        this.request = r;
         this.isClaiming = false;
-        this.computeTransitions();
         this.snackBar.open('Request assigned to you', 'Dismiss', { duration: 3000 });
       },
-      error: () => {
-        this.isClaiming = false;
-        this.snackBar.open('This request was already claimed or could not be claimed. Refresh the request and try again.', 'Dismiss', { duration: 5000 });
-        this.loadRequest(this.currentRequestId, true);
-      },
+      error: () => { this.isClaiming = false; },
     });
   }
 
   reassign(): void {
     const agentId = this.reassignControl.value;
-    if (!agentId || !this.request || this.currentUser?.role !== 'manager') return;
+    if (!agentId) return;
     this.isReassigning = true;
-    this.requestsService.assign(this.request.id, agentId, true).subscribe({
-      next: (request) => {
-        this.request = request;
+    this.requestsService.assign(this.request!.id, agentId).subscribe({
+      next: (r) => {
+        this.request = r;
         this.reassignControl.reset();
         this.isReassigning = false;
         this.snackBar.open('Request reassigned', 'Dismiss', { duration: 3000 });
       },
-      error: () => {
-        this.isReassigning = false;
-        this.snackBar.open('Failed to reassign this request. Refresh and try again.', 'Dismiss', { duration: 5000 });
-      },
+      error: () => { this.isReassigning = false; },
     });
   }
 
@@ -880,68 +696,11 @@ export class RequestDetailComponent implements OnInit, OnDestroy {
       this.requestsService.close(this.request!.id).subscribe({
         next: (r) => {
           this.request = r;
-          this.computeTransitions();
           this.snackBar.open('Request closed', 'Dismiss', { duration: 3000 });
         },
         error: () => this.snackBar.open('Failed to close request', 'Dismiss', { duration: 4000 }),
       });
     });
-  }
-
-  uploadAttachment(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file || !this.currentRequestId || !this.canUploadAttachment || this.isUploadingAttachment) return;
-    const requestId = this.currentRequestId;
-    this.isUploadingAttachment = true;
-    this.attachmentsService.upload(requestId, file).subscribe({
-      next: (attachment) => {
-        if (this.currentRequestId === requestId && !this.attachments.some((existing) => existing.id === attachment.id)) {
-          this.attachments = [attachment, ...this.attachments];
-        }
-        this.attachmentsError = '';
-        this.isUploadingAttachment = false;
-        this.snackBar.open('Attachment uploaded', 'Dismiss', { duration: 3000 });
-      },
-      error: (error: Error) => {
-        this.isUploadingAttachment = false;
-        this.snackBar.open(error.message || 'Attachment upload failed. Please try again.', 'Dismiss', { duration: 5000 });
-      },
-    });
-  }
-
-  downloadAttachment(attachment: Attachment): void {
-    if (this.isDownloadingAttachment) return;
-    this.isDownloadingAttachment = true;
-    this.downloadingAttachmentId = attachment.id;
-    this.attachmentsService.download(attachment.storagePath).subscribe({
-      next: (blob) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = objectUrl;
-        anchor.download = attachment.originalName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      },
-      error: (error: Error) => {
-        this.snackBar.open(error.message || 'Download failed. Please try again.', 'Dismiss', { duration: 5000 });
-        this.isDownloadingAttachment = false;
-        this.downloadingAttachmentId = '';
-      },
-      complete: () => {
-        this.isDownloadingAttachment = false;
-        this.downloadingAttachmentId = '';
-      },
-    });
-  }
-
-  formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   agentName(agentId: string): string {

@@ -5,31 +5,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../contexts/AuthContext';
 import { NewRequestPage } from '../pages/NewRequestPage';
 import * as requestsApi from '../api/requests';
-import * as authApi from '../api/auth';
-
-vi.mock('../api/auth', () => ({
-  login: vi.fn(),
-  register: vi.fn(),
-  restoreSession: vi.fn(),
-  refreshAuthSession: vi.fn(),
-  saveAuthSession: (authUser: { id: string; email: string; name: string; role: string; accessToken: string; refreshToken: string }) => {
-    localStorage.setItem('token', authUser.accessToken);
-    localStorage.setItem('refresh_token', authUser.refreshToken);
-    localStorage.setItem('user', JSON.stringify({ id: authUser.id, email: authUser.email, name: authUser.name, role: authUser.role }));
-  },
-  clearAuthSession: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-  },
-  revokeAuthSession: vi.fn(),
-}));
 
 vi.mock('../api/requests', () => ({
   fetchMyRequests: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 5 }),
   fetchRequest: vi.fn(),
   createRequest: vi.fn(),
   updateRequestStatus: vi.fn(),
+  fetchAgents: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -38,9 +20,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 function renderWithProviders(ui: React.ReactElement) {
-  const session = { id: 'u1', email: 'alice@example.com', name: 'Alice', role: 'customer' as const, accessToken: 'test-token', refreshToken: 'test-refresh-token' };
-  vi.mocked(authApi.restoreSession).mockResolvedValue(session);
-  localStorage.setItem('user', JSON.stringify(session));
+  localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'alice@example.com', name: 'Alice', role: 'customer' }));
   localStorage.setItem('token', 'test-token');
   return render(
     <MemoryRouter>
@@ -132,6 +112,7 @@ describe('NewRequestPage form validation', () => {
     await waitFor(() => {
       expect(requestsApi.createRequest).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'Valid title for testing' }),
+        'u1'
       );
     });
   });

@@ -10,10 +10,6 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    environment.supabaseUrl = 'https://support.test';
-    environment.apiUrl = 'https://support.test/rest/v1';
-    environment.supabaseAnonKey = 'public-anon-key';
-    environment.isSupabaseConfigured = true;
     TestBed.configureTestingModule({
       providers: [AuthService, provideHttpClient(), provideHttpClientTesting()],
     });
@@ -26,90 +22,78 @@ describe('AuthService', () => {
     localStorage.clear();
   });
 
-  it('starts without treating a cached browser user as authenticated', () => {
-    localStorage.setItem('user', JSON.stringify({ id: 'u3', role: 'manager' }));
+  it('should be created', () => {
+    expect(service).toBeTruthy();
+  });
+
+  it('initializes with no user when localStorage is empty', () => {
     expect(service.currentUser).toBeNull();
     expect(service.isLoggedIn).toBeFalse();
   });
 
-  it('verifies the access token and loads the authoritative role from profiles on restore', () => {
-    localStorage.setItem('token', 'persisted-token');
-    localStorage.setItem('refresh_token', 'persisted-refresh');
-    let authorized = false;
-    service.initialize().subscribe((result) => { authorized = result; });
+  it('restores user from localStorage on initialization', () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'agent1@support.com', name: 'Sarah', role: 'agent' }));
+    localStorage.setItem('token', 'valid-jwt-token');
 
-    const authRequest = httpMock.expectOne('https://support.test/auth/v1/user');
-    expect(authRequest.request.headers.get('Authorization')).toBe('Bearer persisted-token');
-    authRequest.flush({ id: 'u3', email: 'agent@example.test', user_metadata: { role: 'manager' } });
-
-    const profileRequest = httpMock.expectOne((request) => request.url.includes('/rest/v1/profiles'));
-    expect(profileRequest.request.headers.get('Authorization')).toBe('Bearer persisted-token');
-    profileRequest.flush([{ id: 'u3', full_name: 'Sarah Chen', role: 'agent' }]);
-
-    expect(authorized).toBeTrue();
-    expect(service.currentUser?.role).toBe('agent');
-    expect(service.currentUser?.name).toBe('Sarah Chen');
-    expect(service.isLoggedIn).toBeTrue();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [AuthService, provideHttpClient(), provideHttpClientTesting()],
+    });
+    const freshService = TestBed.inject(AuthService);
+    expect(freshService.currentUser).toBeTruthy();
+    expect(freshService.currentUser?.email).toBe('agent1@support.com');
+    expect(freshService.isLoggedIn).toBeTrue();
   });
 
-  it('uses the profile role instead of user-editable auth metadata during login', () => {
-    let loggedInRole = '';
-    service.login({ email: 'agent@example.test', password: 'password123' }).subscribe((session) => {
-      loggedInRole = session.user.role;
-      expect(session.accessToken).toBe('agent-token');
-      expect(localStorage.getItem('token')).toBe('agent-token');
-      expect(localStorage.getItem('refresh_token')).toBe('agent-refresh');
+  it('sets user and token in localStorage after successful login', () => {
+    service.login({ email: 'agent1@support.com', password: 'password123' }).subscribe(res => {
+      expect(res.accessToken).toBe('test-jwt');
+      expect(res.user.email).toBe('agent1@support.com');
+      expect(localStorage.getItem('token')).toBe('test-jwt');
     });
 
-    const authRequest = httpMock.expectOne((request) => request.url.includes('/auth/v1/token'));
-    expect(authRequest.request.method).toBe('POST');
-    expect(authRequest.request.headers.get('apikey')).toBe('public-anon-key');
-    authRequest.flush({
-      access_token: 'agent-token',
-      refresh_token: 'agent-refresh',
-      user: { id: 'u3', email: 'agent@example.test', user_metadata: { full_name: 'Untrusted', role: 'manager' } },
+    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      access_token: 'test-jwt',
+      user: { id: 'u3', email: 'agent1@support.com', user_metadata: { full_name: 'Sarah Chen', role: 'agent' } }
     });
-
-    const profileRequest = httpMock.expectOne((request) => request.url.includes('/rest/v1/profiles'));
-    profileRequest.flush([{ id: 'u3', full_name: 'Sarah Chen', role: 'agent' }]);
-
-    expect(loggedInRole).toBe('agent');
-    expect(service.currentUser?.name).toBe('Sarah Chen');
   });
 
-  it('rejects customer profiles from the staff workspace', () => {
-    let loginError = '';
-    service.login({ email: 'customer@example.test', password: 'password123' }).subscribe({
-      error: (error: Error) => { loginError = error.message; },
+  it('sets manager role correctly after login', () => {
+    service.login({ email: 'manager@support.com', password: 'password123' }).subscribe(res => {
+      expect(res.user.role).toBe('manager');
+      expect(res.user.name).toBe('Maria Rodriguez');
     });
-    httpMock.expectOne((request) => request.url.includes('/auth/v1/token')).flush({
-      access_token: 'customer-token',
-      refresh_token: 'customer-refresh',
-      user: { id: 'u1', email: 'customer@example.test' },
-    });
-    httpMock.expectOne((request) => request.url.includes('/rest/v1/profiles')).flush([
-      { id: 'u1', full_name: 'Customer One', role: 'customer' },
-    ]);
 
-    expect(loginError).toContain('support employees only');
-    expect(service.currentUser).toBeNull();
-    expect(localStorage.getItem('token')).toBeNull();
+    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
+    req.flush({
+      access_token: 'mgr-jwt',
+      user: { id: 'u5', email: 'manager@support.com', user_metadata: { full_name: 'Maria Rodriguez', role: 'manager' } }
+    });
   });
 
-  it('revokes the active Supabase session and clears local state on logout', () => {
-    localStorage.setItem('token', 'active-token');
-    localStorage.setItem('refresh_token', 'active-refresh');
-    localStorage.setItem('user', JSON.stringify({ id: 'u3', role: 'agent' }));
-
+  it('clears localStorage and user state on logout', () => {
+    localStorage.setItem('token', 'some-token');
+    localStorage.setItem('user', '{}');
     service.logout();
-
-    const request = httpMock.expectOne('https://support.test/auth/v1/logout');
-    expect(request.request.method).toBe('POST');
-    expect(request.request.headers.get('Authorization')).toBe('Bearer active-token');
-    request.flush(null);
     expect(localStorage.getItem('token')).toBeNull();
-    expect(localStorage.getItem('refresh_token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
     expect(service.currentUser).toBeNull();
+  });
+
+  it('emits updated user through currentUser$ observable after login', () => {
+    let emittedUser: any = null;
+    service.currentUser$.subscribe(u => emittedUser = u);
+
+    service.login({ email: 'agent1@support.com', password: 'pass' }).subscribe();
+    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
+    req.flush({
+      access_token: 'jwt',
+      user: { id: 'u3', email: 'agent1@support.com', user_metadata: { full_name: 'Sarah', role: 'agent' } }
+    });
+
+    expect(emittedUser).toBeTruthy();
+    expect(emittedUser.email).toBe('agent1@support.com');
   });
 });

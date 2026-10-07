@@ -20,7 +20,6 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   function validate(): boolean {
     const errs: FormErrors = {};
@@ -42,9 +41,8 @@ export function RegisterPage() {
     setIsSubmitting(true);
     setErrors({});
     try {
-      const signedIn = await register({ email: email.trim(), password, name: name.trim() });
-      if (signedIn) navigate("/dashboard");
-      else setRegistrationComplete(true);
+      await register({ email: email.trim(), password, name: name.trim(), role: "customer" });
+      navigate("/dashboard");
     } catch {
       setErrors({ general: "Registration failed. This email may already be in use." });
     } finally {
@@ -68,13 +66,8 @@ export function RegisterPage() {
         <div className="glass-card p-8">
           <form onSubmit={handleSubmit} noValidate id="register-form">
             {errors.general && (
-              <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in" role="alert">
+              <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in">
                 {errors.general}
-              </div>
-            )}
-            {registrationComplete && (
-              <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
-                Your account was created. Check your email to confirm it, then sign in.
               </div>
             )}
 

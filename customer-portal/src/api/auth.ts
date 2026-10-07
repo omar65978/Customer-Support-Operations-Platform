@@ -1,139 +1,70 @@
-import axios, { AxiosError } from "axios";
-import type { AuthUser, LoginCredentials, RegisterPayload, UserRole } from "../types";
-import { assertSupabaseConfigured, supabaseConfig } from "../config/supabase";
+import axios from "axios";
+import type { LoginCredentials, RegisterPayload, AuthUser } from "../types";
 
-interface SupabaseAuthUser {
-  id: string;
-  email?: string;
-}
-
-interface SupabaseTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  user: SupabaseAuthUser;
-}
-
-interface SupabaseProfile {
-  id: string;
-  full_name: string;
-  role: UserRole;
-}
-
-function authHeaders(accessToken?: string): Record<string, string> {
-  return {
-    apikey: supabaseConfig.anonKey,
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-}
-
-async function loadProfile(
-  authUser: SupabaseAuthUser,
-  accessToken: string,
-  refreshToken: string,
-): Promise<AuthUser> {
-  const response = await axios.get<SupabaseProfile[]>(`${supabaseConfig.restUrl}/profiles`, {
-    params: {
-      id: `eq.${authUser.id}`,
-      select: "id,full_name,role",
-    },
-    headers: authHeaders(accessToken),
-  });
-  const profile = response.data[0];
-
-  if (!profile || profile.id !== authUser.id || !["customer", "agent", "manager"].includes(profile.role)) {
-    throw new Error("Your account profile is not set up for Support Platform access.");
-  }
-
-  return {
-    id: profile.id,
-    email: authUser.email ?? "",
-    name: profile.full_name,
-    role: profile.role,
-    accessToken,
-    refreshToken,
-  };
-}
+const SUPABASE_AUTH_URL = "https://iaukydzbcdmglqajllei.supabase.co/auth/v1";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhdWt5ZHpiY2RtZ2xxYWpsbGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyNjQzMzIsImV4cCI6MjEwMjg0MDMzMn0.GxvoOvmGBpVUOeRC2G3nN3POzX02KGD33hmh7joN_dc";
 
 export async function login(credentials: LoginCredentials): Promise<AuthUser> {
-  assertSupabaseConfigured();
-  const response = await axios.post<SupabaseTokenResponse>(
-    `${supabaseConfig.authUrl}/token?grant_type=password`,
+  const response = await axios.post(
+    `${SUPABASE_AUTH_URL}/token?grant_type=password`,
     credentials,
-    { headers: { ...authHeaders(), "Content-Type": "application/json" } },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+      },
+    }
   );
 
-  return loadProfile(response.data.user, response.data.access_token, response.data.refresh_token);
+  const { access_token, user } = response.data;
+
+  const authUser: AuthUser = {
+    id: user.id,
+    email: user.email,
+    name: user.user_metadata?.full_name || user.name || user.email,
+    role: user.user_metadata?.role || user.role || "customer",
+    accessToken: access_token,
+  };
+
+  localStorage.setItem("token", access_token);
+  localStorage.setItem("user", JSON.stringify(authUser));
+
+  return authUser;
 }
 
-export async function register(payload: RegisterPayload): Promise<AuthUser | null> {
-  assertSupabaseConfigured();
-  const response = await axios.post<Partial<SupabaseTokenResponse> & { user?: SupabaseAuthUser }>(
-    `${supabaseConfig.authUrl}/signup`,
+export async function register(payload: RegisterPayload): Promise<AuthUser> {
+  const response = await axios.post(
+    `${SUPABASE_AUTH_URL}/signup`,
     {
       email: payload.email,
       password: payload.password,
-      data: { full_name: payload.name },
+      data: {
+        full_name: payload.name,
+        role: payload.role || "customer",
+      },
     },
-    { headers: { ...authHeaders(), "Content-Type": "application/json" } },
-  );
-
-  if (!response.data.access_token || !response.data.refresh_token || !response.data.user) {
-    return null;
-  }
-
-  return loadProfile(response.data.user, response.data.access_token, response.data.refresh_token);
-}
-
-export async function refreshAuthSession(refreshToken: string): Promise<AuthUser> {
-  assertSupabaseConfigured();
-  const response = await axios.post<SupabaseTokenResponse>(
-    `${supabaseConfig.authUrl}/token?grant_type=refresh_token`,
-    { refresh_token: refreshToken },
-    { headers: { ...authHeaders(), "Content-Type": "application/json" } },
-  );
-
-  return loadProfile(response.data.user, response.data.access_token, response.data.refresh_token);
-}
-
-export async function restoreSession(): Promise<AuthUser | null> {
-  assertSupabaseConfigured();
-  const accessToken = localStorage.getItem("token");
-  const refreshToken = localStorage.getItem("refresh_token");
-  if (!accessToken) return null;
-
-  try {
-    const response = await axios.get<SupabaseAuthUser>(`${supabaseConfig.authUrl}/user`, {
-      headers: authHeaders(accessToken),
-    });
-    return loadProfile(response.data, accessToken, refreshToken ?? "");
-  } catch (error) {
-    if (refreshToken && error instanceof AxiosError && error.response?.status === 401) {
-      return refreshAuthSession(refreshToken);
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+      },
     }
-    throw error;
+  );
+
+  const { access_token, user } = response.data;
+
+  const authUser: AuthUser = {
+    id: user?.id || "",
+    email: payload.email,
+    name: payload.name,
+    role: payload.role || "customer",
+    accessToken: access_token || "",
+  };
+
+  if (access_token) {
+    localStorage.setItem("token", access_token);
+    localStorage.setItem("user", JSON.stringify(authUser));
   }
-}
 
-export function saveAuthSession(authUser: AuthUser): void {
-  localStorage.setItem("token", authUser.accessToken);
-  localStorage.setItem("refresh_token", authUser.refreshToken);
-  localStorage.setItem("user", JSON.stringify({
-    id: authUser.id,
-    email: authUser.email,
-    name: authUser.name,
-    role: authUser.role,
-  }));
-}
-
-export function clearAuthSession(): void {
-  localStorage.removeItem("token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("user");
-}
-
-export function revokeAuthSession(accessToken: string): void {
-  if (!supabaseConfig.isConfigured || !accessToken) return;
-  void axios.post(`${supabaseConfig.authUrl}/logout`, null, {
-    headers: authHeaders(accessToken),
-  }).catch(() => undefined);
+  return authUser;
 }

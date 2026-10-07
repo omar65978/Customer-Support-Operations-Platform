@@ -1,47 +1,56 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
-import type { Message, UserRole } from '../models';
+import type { Message } from '../models';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
-function mapMessage(message: any): Message {
+function mapMessage(m: any): Message {
+  if (!m) return m;
   return {
-    id: message.id,
-    requestId: message.request_id ?? message.requestId,
-    authorId: message.author_id ?? message.authorId,
-    authorName: message.author_name ?? message.authorName,
-    authorRole: (message.author_role ?? message.authorRole) as UserRole,
-    content: message.content,
-    isInternal: message.is_internal ?? message.isInternal ?? false,
-    createdAt: message.created_at ?? message.createdAt,
+    id: m.id,
+    requestId: m.request_id ?? m.requestId,
+    authorId: m.author_id ?? m.authorId,
+    authorName: m.author_name ?? m.authorName,
+    authorRole: m.author_role ?? m.authorRole,
+    content: m.content,
+    isInternal: m.is_internal ?? m.isInternal ?? false,
+    createdAt: m.created_at ?? m.createdAt,
   };
 }
 
 @Injectable({ providedIn: 'root' })
 export class MessagesService {
   private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private base = `${environment.apiUrl}/messages`;
 
   getForRequest(requestId: string): Observable<Message[]> {
-    return this.http.get<any[]>(this.base, {
-      params: {
-        request_id: `eq.${requestId}`,
-        order: 'created_at.asc',
-        select: 'id,request_id,author_id,author_name,author_role,content,is_internal,created_at',
-      },
-    }).pipe(map((messages) => (Array.isArray(messages) ? messages.map(mapMessage) : [])));
+    return this.http.get<any[]>(`${this.base}?request_id=eq.${requestId}&order=created_at.asc`).pipe(
+      map(msgs => (Array.isArray(msgs) ? msgs.map(mapMessage) : []))
+    );
   }
 
-  sendMessage(requestId: string, content: string, isInternal: boolean): Observable<Message> {
-    return this.http.post<any[]>(this.base, {
+  sendMessage(
+    requestId: string,
+    content: string,
+    isInternal: boolean
+  ): Observable<Message> {
+    const user = this.authService.currentUser;
+
+    const payload = {
       request_id: requestId,
-      content: content.trim(),
+      content,
       is_internal: isInternal,
-    }, {
-      headers: { Prefer: 'return=representation' },
-    }).pipe(map((rows) => {
-      if (!Array.isArray(rows) || rows.length === 0) throw new Error('Message was not saved. Please retry.');
-      return mapMessage(rows[0]);
-    }));
+      author_id: user?.id ?? null,
+      author_name: user?.name ?? 'Support User',
+      author_role: user?.role ?? 'agent'
+    };
+
+    return this.http.post<any[] | any>(this.base, payload, {
+      headers: { 'Prefer': 'return=representation' }
+    }).pipe(
+      map(res => mapMessage(Array.isArray(res) ? res[0] : res))
+    );
   }
 }

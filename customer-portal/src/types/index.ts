@@ -20,7 +20,6 @@ export interface User {
 
 export interface AuthUser extends User {
   accessToken: string;
-  refreshToken: string;
 }
 
 export interface SupportRequest {
@@ -47,6 +46,7 @@ export interface Message {
   content: string;
   isInternal: boolean;
   createdAt: string;
+  attachments?: Attachment[];
 }
 
 export interface Attachment {
@@ -56,7 +56,7 @@ export interface Attachment {
   uploaderName: string;
   uploaderRole: UserRole;
   originalName: string;
-  storagePath: string;
+  storedName: string;
   mimeType: string;
   size: number;
   createdAt: string;
@@ -82,4 +82,5 @@ export interface RegisterPayload {
   email: string;
   password: string;
   name: string;
+  role: UserRole;
 }

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
-import { Observable, map, throwError } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import type { SupportRequest, RequestStatus, User } from '../models';
 import { environment } from '../../../environments/environment';
 
@@ -11,9 +11,6 @@ export interface RequestFilters {
   q?: string;
 }
 
-export type RequestSortField = 'reference' | 'title' | 'category' | 'priority' | 'status' | 'updated_at' | 'created_at';
-export type RequestSortDirection = 'asc' | 'desc';
-
 export interface RequestPage {
   data: SupportRequest[];
   total: number;
@@ -21,143 +18,113 @@ export interface RequestPage {
   pageSize: number;
 }
 
-function mapRequest(request: any): SupportRequest {
+function mapRequest(r: any): SupportRequest {
+  if (!r) return r;
   return {
-    id: request.id,
-    reference: request.reference,
-    title: request.title,
-    description: request.description,
-    category: request.category,
-    priority: request.priority,
-    status: request.status,
-    customerId: request.customer_id ?? request.customerId,
-    assignedAgentId: request.assigned_agent_id ?? request.assignedAgentId,
-    createdAt: request.created_at ?? request.createdAt,
-    updatedAt: request.updated_at ?? request.updatedAt,
-    resolvedAt: request.resolved_at ?? request.resolvedAt,
+    id: r.id,
+    reference: r.reference,
+    title: r.title,
+    description: r.description,
+    category: r.category,
+    priority: r.priority,
+    status: r.status,
+    customerId: r.customer_id ?? r.customerId,
+    assignedAgentId: r.assigned_agent_id ?? r.assignedAgentId,
+    createdAt: r.created_at ?? r.createdAt,
+    updatedAt: r.updated_at ?? r.updatedAt,
+    resolvedAt: r.resolved_at ?? r.resolvedAt,
   };
-}
-
-function mapProfile(profile: any): User {
-  return {
-    id: profile.id,
-    email: profile.email ?? '',
-    name: profile.full_name ?? profile.name ?? 'Support agent',
-    role: profile.role,
-  };
-}
-
-function returnedRequest(rows: any[]): SupportRequest {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw new Error('The request was changed by another user or you do not have permission.');
-  }
-  return mapRequest(rows[0]);
-}
-
-function safeSearchTerm(term: string): string {
-  return term.trim().replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
 @Injectable({ providedIn: 'root' })
 export class RequestsService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/requests`;
-  private patchHeaders = { Prefer: 'return=representation' };
+  private patchHeaders = { 'Prefer': 'return=representation' };
 
-  getAll(
-    filters: RequestFilters = {},
-    agentId?: string,
-    isManager = false,
-    page = 1,
-    pageSize = 10,
-    sortField: RequestSortField = 'updated_at',
-    sortDirection: RequestSortDirection = 'desc',
-  ): Observable<RequestPage> {
-    let params = new HttpParams().set('select', '*');
-    params = params.set('order', `${sortField}.${sortDirection}`);
+  getAll(filters: RequestFilters = {}, agentId?: string, isManager = false, page = 1, pageSize = 10): Observable<RequestPage> {
+    let params = new HttpParams();
+    params = params.set('order', 'updated_at.desc');
 
-    const safePage = Math.max(1, Math.floor(Number.isFinite(page) ? page : 1));
-    const safePageSize = Math.min(50, Math.max(1, Math.floor(Number.isFinite(pageSize) ? pageSize : 10)));
-    const start = (safePage - 1) * safePageSize;
-    const end = start + safePageSize - 1;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize - 1;
 
-    const disjunctions: string[] = [];
-    if (!isManager && agentId) {
-      disjunctions.push(`or(assigned_agent_id.eq.${agentId},and(assigned_agent_id.is.null,status.in.(open,in_progress,waiting_for_customer)))`);
-    }
+    if (!isManager && agentId) params = params.set('assigned_agent_id', `eq.${agentId}`);
     if (filters.status) params = params.set('status', `eq.${filters.status}`);
     if (filters.priority) params = params.set('priority', `eq.${filters.priority}`);
     if (filters.category) params = params.set('category', `eq.${filters.category}`);
-    const query = safeSearchTerm(filters.q ?? '');
-    if (query) disjunctions.push(`or(title.ilike.*${query}*,description.ilike.*${query}*,reference.ilike.*${query}*)`);
-    if (disjunctions.length === 1) params = params.set('or', disjunctions[0].slice(2));
-    if (disjunctions.length > 1) params = params.set('and', `(${disjunctions.join(',')})`);
+    if (filters.q) params = params.set('title', `ilike.%${filters.q}%`);
 
     const headers = {
-      Prefer: 'count=exact',
-      Range: `${start}-${end}`,
+      'Prefer': 'count=exact',
+      'Range': `${start}-${end}`
     };
 
     return this.http.get<any[]>(this.base, { params, headers, observe: 'response' }).pipe(
       map((response: HttpResponse<any[]>) => {
-        const count = response.headers.get('content-range')?.split('/')[1];
-        const parsedCount = count && count !== '*' ? Number.parseInt(count, 10) : 0;
-        return {
-          data: (response.body ?? []).map(mapRequest),
-          total: Number.isFinite(parsedCount) ? parsedCount : 0,
-          page: safePage,
-          pageSize: safePageSize,
-        };
-      }),
+        const contentRange = response.headers.get('content-range');
+        let total = 0;
+        if (contentRange) {
+          const parts = contentRange.split('/');
+          if (parts.length === 2 && parts[1] !== '*') {
+            total = parseInt(parts[1], 10);
+          }
+        }
+        const rawData = response.body ?? [];
+        const data = rawData.map(mapRequest);
+        return { data, total, page, pageSize };
+      })
     );
   }
 
   getOne(id: string): Observable<SupportRequest> {
-    return this.http.get<any[]>(this.base, {
-      params: { id: `eq.${id}`, select: '*', limit: '1' },
-    }).pipe(
-      map((rows) => {
-        if (!Array.isArray(rows) || rows.length === 0) throw new Error('Request not found or access denied.');
-        return mapRequest(rows[0]);
-      }),
+    return this.http.get<any[]>(`${this.base}?id=eq.${id}`).pipe(
+      map(res => mapRequest(Array.isArray(res) && res.length > 0 ? res[0] : res))
     );
   }
 
   updateStatus(id: string, status: RequestStatus): Observable<SupportRequest> {
-    return this.http.patch<any[]>(this.base, { status }, {
-      params: { id: `eq.${id}` },
-      headers: this.patchHeaders,
-    }).pipe(map(returnedRequest));
+    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
+      status,
+      updated_at: new Date().toISOString(),
+      resolved_at: status === 'resolved' ? new Date().toISOString() : null,
+    }, { headers: this.patchHeaders }).pipe(
+      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
+    );
   }
 
-  assign(id: string, agentId: string, isManager = false, availableStatus: RequestStatus = 'open'): Observable<SupportRequest> {
-    const params: Record<string, string> = { id: `eq.${id}` };
-    const body: Record<string, string> = { assigned_agent_id: agentId };
-    if (!isManager) {
-      if (!['open', 'in_progress', 'waiting_for_customer'].includes(availableStatus)) {
-        return throwError(() => new Error('This request is not available to claim.'));
-      }
-      params['assigned_agent_id'] = 'is.null';
-      params['status'] = `eq.${availableStatus}`;
-      body['status'] = availableStatus === 'open' ? 'in_progress' : availableStatus;
-    }
-    return this.http.patch<any[]>(this.base, body, {
-      params,
-      headers: this.patchHeaders,
-    }).pipe(map(returnedRequest));
+  assign(id: string, agentId: string | null): Observable<SupportRequest> {
+    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
+      assigned_agent_id: agentId,
+      status: agentId ? 'in_progress' : 'open',
+      updated_at: new Date().toISOString(),
+    }, { headers: this.patchHeaders }).pipe(
+      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
+    );
   }
 
   close(id: string): Observable<SupportRequest> {
-    return this.updateStatus(id, 'closed');
+    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
+      status: 'closed',
+      updated_at: new Date().toISOString(),
+    }, { headers: this.patchHeaders }).pipe(
+      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
+    );
   }
 
   reopen(id: string): Observable<SupportRequest> {
-    return this.updateStatus(id, 'in_progress');
+    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
+      status: 'in_progress',
+      resolved_at: null,
+      updated_at: new Date().toISOString(),
+    }, { headers: this.patchHeaders }).pipe(
+      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
+    );
   }
 
   getAllAgentsForLookup(): Observable<User[]> {
-    return this.http.get<any[]>(`${environment.apiUrl}/profiles`, {
-      params: { role: 'eq.agent', select: 'id,full_name,role', order: 'full_name.asc' },
-    }).pipe(map((profiles) => (Array.isArray(profiles) ? profiles.map(mapProfile) : [])));
+    return this.http.get<User[]>(`${environment.apiUrl}/users?role=eq.agent&select=id,email,name,role`).pipe(
+      map(users => (Array.isArray(users) ? users : []))
+    );
   }
 }

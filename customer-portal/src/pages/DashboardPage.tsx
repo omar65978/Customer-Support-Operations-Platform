@@ -61,8 +61,6 @@ export function DashboardPage() {
   }
 
   const hasActiveFilters = Object.keys(localFilters).some((k) => localFilters[k as keyof RequestFilters]);
-  const firstVisiblePage = Math.max(1, Math.min(page - 2, totalPages - 4));
-  const visiblePages = Array.from({ length: Math.min(totalPages, 5) }, (_, index) => firstVisiblePage + index);
 
   return (
     <AppLayout>
@@ -184,8 +182,7 @@ export function DashboardPage() {
                 ← Previous
               </button>
 
-              {firstVisiblePage > 1 && <span className="px-1 text-slate-400" aria-hidden="true">…</span>}
-              {visiblePages.map((p) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <button
                   key={p}
                   onClick={() => goToPage(p)}
@@ -194,13 +191,11 @@ export function DashboardPage() {
                       ? "bg-brand-600 text-white shadow-sm"
                       : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600"
                   }`}
-                  aria-label={`Page ${p}`}
                   aria-current={p === page ? "page" : undefined}
                 >
                   {p}
                 </button>
               ))}
-              {firstVisiblePage + visiblePages.length - 1 < totalPages && <span className="px-1 text-slate-400" aria-hidden="true">…</span>}
 
               <button
                 onClick={() => goToPage(page + 1)}
