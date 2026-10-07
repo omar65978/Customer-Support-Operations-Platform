@@ -1,147 +1,61 @@
-A production-ready customer support platform consisting of a React Customer Portal and an Angular Support Workspace.
+# Customer Support Operations Platform
 
-## 🚀 Live Demo
+A shared Supabase-backed support workflow with two role-specific frontends:
 
-<div align="center">
+- **Customer Portal** — React 19, Vite, TypeScript, and Tailwind CSS.
+- **Support Workspace** — Angular 18 and Angular Material for agents and managers.
 
-<a href="https://customer-support-operations-platfor-taupe.vercel.app/">
-<img src="https://img.shields.io/badge/👤%20CUSTOMER%20PORTAL-2563EB?style=for-the-badge&logo=react&logoColor=white&labelColor=1E3A8A" alt="Customer Portal" width="320"/>
-</a>
+Both browser apps call the same Supabase Auth, PostgREST, and Storage services directly. Request ownership, staff roles, lifecycle transitions, internal-note visibility, and private attachments are enforced by the Supabase schema, RLS, triggers, and Storage policies—not by hiding frontend controls.
 
-&nbsp;&nbsp;&nbsp;
+## Repository layout
 
-<a href="https://customer-support-operations-platfor-murex.vercel.app/">
-<img src="https://img.shields.io/badge/🛠️%20SUPPORT%20WORKSPACE-7C3AED?style=for-the-badge&logo=angular&logoColor=white&labelColor=4C1D95" alt="Support Workspace" width="320"/>
-</a>
-
-</div>
-## Applications
-
-| App | Technology | Port | Purpose |
-|---|---|---|---|
-| **Backend** | JSON Server + json-server-auth | 3001 | Shared REST API with JWT auth + CORS |
-| **Customer Portal** | React 19 + Vite + TypeScript + Tailwind CSS | 5173 | Customer-facing support portal |
-| **Support Workspace** | Angular 18 + Angular Material | 4200 | Agent and Manager workspace |
-
----
-
-## Project Structure
-
-```
-support-platform/
-├── backend/           # json-server + json-server-auth (port 3001)
-├── customer-portal/   # React 19 + Vite + TypeScript (port 5173)
-└── support-workspace/ # Angular 18 + Angular Material (port 4200)
+```text
+customer-portal/       React customer portal
+support-workspace/     Angular agent/manager workspace
+supabase/migrations/   Shared tables, RLS, triggers, and private Storage setup
+backend/               Legacy JSON Server prototype; not used by the Supabase apps
 ```
 
----
+## Supabase setup and local run
 
-## Prerequisites
+Prerequisites: Node.js 20.19 or later (or Node.js 22.12 or later) and npm. Use a dedicated Supabase project for this platform.
 
-- Node.js 18+
-- npm 9+
-
----
-
-## Running the Project
-
-Start **all three** services — each in a separate terminal.
-
-### 1. Backend
-
-```bash
-cd backend
-npm install
-npm start
-```
-
-Runs on **http://localhost:3001**
-
-### 2. Customer Portal (React)
+1. Create a dedicated Supabase project.
+2. Apply `supabase/migrations/202610070001_support_platform.sql` from its SQL Editor after reviewing the existing project/schema and taking a backup.
+3. Copy `customer-portal/.env.example` to `customer-portal/.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+4. Copy `support-workspace/.env.example` to `support-workspace/.env` and set `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+5. Create customer, agent, and manager Auth users. Customer registration creates a customer profile; an administrator assigns the `agent` or `manager` role in `public.profiles`.
+6. Install and start each app in a separate terminal:
 
 ```bash
 cd customer-portal
-npm install
+npm ci
 npm run dev
 ```
 
-Opens at **http://localhost:5173**
-
-### 3. Support Workspace (Angular)
-
 ```bash
 cd support-workspace
-npm install
+npm ci
 npm start
 ```
 
-Opens at **http://localhost:4200**
+The React app uses port 5173 and Angular uses port 4200 by default. The frontends do not require the legacy local JSON Server. Only the public Supabase anon key belongs in browser configuration; never use a Supabase `service_role` or secret key in either frontend.
 
----
+See [Supabase setup, roles, security, and workflow demo](docs/supabase-setup.md) for full setup instructions, staff-role assignment, negative security checks, test-user creation, and known limitations.
 
-## Test Accounts
-
-All accounts use password: `password123`
-
-| Email | Name | Role |
-|-------|------|------|
-| alice@example.com | Alice Johnson | Customer |
-| bob@example.com | Bob Martinez | Customer |
-| agent1@support.com | Sarah Chen | Agent |
-| agent2@support.com | James Wright | Agent |
-| manager@support.com | Maria Rodriguez | Manager |
-
----
-
-## Running Tests
+## Tests and builds
 
 ```bash
-# React tests (Vitest)
 cd customer-portal
 npm test
-
-# Angular tests (Karma/Jasmine)
-cd support-workspace
-npm test
-
-# Production builds
-cd customer-portal && npm run build
-cd support-workspace && npm run build
+npm run build
+npm run lint
 ```
 
-## Test Results
+```bash
+cd support-workspace
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
+```
 
-- React (Vitest): **17/17 tests passed**
-- Angular (Karma/Jasmine): **25/25 tests passed**
-- Both production builds: **clean, zero errors**
-
----
-
-## Features
-
-### Customer Portal (React)
-- JWT authentication via json-server-auth
-- Server-side paginated request list with filters
-- Customers see only their own requests
-- Reply to open requests
-- Internal agent notes are never exposed to customers
-- File attachments with type/size validation
-
-### Support Workspace (Angular)
-- JWT authentication with role-based routing
-- Agent view: only assigned requests visible
-- Manager view: all requests across all agents
-- Server-side search, filter, sort, pagination
-- Status transitions with validation
-- Agent assignment and reassignment
-- Internal notes (hidden from customers)
-- File upload and download
-
-### Backend Security
-- All routes require valid JWT
-- Customers: read/write own requests and messages only
-- Agents: read/write only their assigned requests
-- Managers: unrestricted access
-- Internal messages never returned to customers
-- Cross-user URL manipulation returns 403
-- Attachment download requires request ownership
+Angular's Karma test command needs ChromeHeadless installed. For environments without a browser, run `npx tsc -p tsconfig.spec.json --noEmit` from `support-workspace` as a test-source type check.
