@@ -1,62 +1,77 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
+  DEFAULT_REQUEST_FILTERS,
   fetchMyRequests,
   fetchRequest,
   createRequest,
-  updateRequestStatus,
+  reopenRequest,
   type RequestFilters,
 } from "../api/requests";
+import { describeApiError } from "../api/errors";
+import { usePolling } from "./usePolling";
 import type { SupportRequest, NewRequestPayload } from "../types";
+
+export const PAGE_SIZE = 5;
 
 export function useRequests(customerId: string) {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<RequestFilters>({});
+  const [filters, setFilters] = useState<RequestFilters>(DEFAULT_REQUEST_FILTERS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const PAGE_SIZE = 5;
+  // Only the most recent request is allowed to update the screen.
+  const latestRequest = useRef(0);
 
   const load = useCallback(
-    async (p: number, f: RequestFilters) => {
+    async (targetPage: number, targetFilters: RequestFilters, silent = false) => {
       if (!customerId) return;
-      setIsLoading(true);
-      setError(null);
+      const requestId = ++latestRequest.current;
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+      }
       try {
-        const result = await fetchMyRequests(f, p, PAGE_SIZE);
+        const result = await fetchMyRequests(targetFilters, customerId, targetPage, PAGE_SIZE);
+        if (requestId !== latestRequest.current) return;
         setRequests(result.data);
         setTotal(result.total);
-      } catch {
-        setError("Failed to load your requests. Please try again.");
+        setError(null);
+      } catch (err) {
+        if (requestId === latestRequest.current && !silent) {
+          setError(describeApiError(err, "Failed to load your requests. Please try again."));
+        }
       } finally {
-        setIsLoading(false);
+        if (requestId === latestRequest.current && !silent) setIsLoading(false);
       }
     },
     [customerId]
   );
 
   useEffect(() => {
-    load(page, filters);
+    void load(page, filters);
   }, [page, filters, load]);
 
-  const applyFilters = useCallback(
-    (newFilters: RequestFilters) => {
-      setFilters(newFilters);
-      setPage(1);
-    },
-    []
-  );
+  usePolling(() => void load(page, filters, true), 30_000);
 
-  const goToPage = useCallback((p: number) => setPage(p), []);
+  const updateFilters = useCallback((patch: Partial<RequestFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+    setPage(1);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setFilters(DEFAULT_REQUEST_FILTERS);
+    setPage(1);
+  }, []);
 
   const create = useCallback(
     async (payload: NewRequestPayload) => {
-      const newReq = await createRequest(payload, customerId);
-      load(1, filters);
+      const created = await createRequest(payload, customerId);
+      setFilters(DEFAULT_REQUEST_FILTERS);
       setPage(1);
-      return newReq;
+      return created;
     },
-    [customerId, filters, load]
+    [customerId]
   );
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -72,42 +87,59 @@ export function useRequests(customerId: string) {
     error,
     reload: () => load(page, filters),
     create,
-    applyFilters,
-    goToPage,
+    updateFilters,
+    clearFilters,
+    goToPage: setPage,
   };
 }
 
-export function useRequest(id: string) {
+export function useRequest(id: string, customerId: string) {
   const [request, setRequest] = useState<SupportRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchRequest(id);
-      setRequest(data);
-    } catch {
-      setError("Request not found or you do not have access to it.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const updateStatus = useCallback(
-    async (status: SupportRequest["status"]) => {
-      const updated = await updateRequestStatus(id, status);
-      setRequest(updated);
-      return updated;
+  /** Loads the request. Background polls keep the current view and ignore failures. */
+  const load = useCallback(
+    async (silent = false) => {
+      if (!id || !customerId) return;
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+      }
+      try {
+        const data = await fetchRequest(id, customerId);
+        setRequest(data);
+        setError(null);
+      } catch (err) {
+        if (!silent) {
+          setRequest(null);
+          setError(describeApiError(err, "Failed to load this request. Please try again."));
+        }
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
     },
-    [id]
+    [id, customerId]
   );
 
-  return { request, isLoading, error, reload: load, updateStatus };
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  usePolling(() => void load(true), 15_000);
+
+  /** Like load(), but rejects on failure so the caller can tell the user. */
+  const refresh = useCallback(async () => {
+    const data = await fetchRequest(id, customerId);
+    setRequest(data);
+    return data;
+  }, [id, customerId]);
+
+  const reopen = useCallback(async () => {
+    const updated = await reopenRequest(id);
+    setRequest(updated);
+    return updated;
+  }, [id]);
+
+  return { request, isLoading, error, reload: () => load(), refresh, reopen };
 }

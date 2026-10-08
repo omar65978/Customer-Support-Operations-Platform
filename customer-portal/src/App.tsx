@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { NewRequestPage } from "./pages/NewRequestPage";
 import { RequestDetailPage } from "./pages/RequestDetailPage";
 import { PageSpinner } from "./components/ui/Spinner";
+import { SUPABASE_CONFIGURED, CONFIG_HELP } from "./config/supabase";
 import type { ReactNode } from "react";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -72,6 +73,16 @@ function AppRoutes() {
 }
 
 export default function App() {
+  if (!SUPABASE_CONFIGURED) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div role="alert" className="max-w-lg rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+          <p className="font-semibold">Configuration required</p>
+          <p className="mt-2">{CONFIG_HELP}</p>
+        </div>
+      </main>
+    );
+  }
   return (
     <BrowserRouter>
       <AuthProvider>

@@ -1,120 +1,75 @@
-import { useState } from "react";
-import type { SupportRequest, RequestStatus } from "../../types";
-import { RequestCard } from "./RequestCard";
-import { EmptyState } from "../ui/EmptyState";
-import { Link } from "react-router-dom";
+import { useRef, type KeyboardEvent } from "react";
+import type { RequestGroup } from "../../api/requests";
 
-type TabKey = "all" | "active" | "waiting" | "resolved";
-
-interface Tab {
-  key: TabKey;
+interface GroupTab {
+  key: RequestGroup;
   label: string;
-  icon: string;
-  filter: (r: SupportRequest) => boolean;
-  emptyTitle: string;
-  emptyDescription: string;
-  emptyIcon: string;
+  hint: string;
 }
 
-const TABS: Tab[] = [
-  {
-    key: "all",
-    label: "All Requests",
-    icon: "📋",
-    filter: () => true,
-    emptyTitle: "No requests yet",
-    emptyDescription: "Submit your first support request and we will get back to you quickly.",
-    emptyIcon: "📭",
-  },
-  {
-    key: "active",
-    label: "Active",
-    icon: "🔵",
-    filter: (r) => ["open", "in_progress"].includes(r.status),
-    emptyTitle: "No active requests",
-    emptyDescription: "You have no requests currently being handled.",
-    emptyIcon: "✅",
-  },
-  {
-    key: "waiting",
-    label: "Awaiting Your Reply",
-    icon: "🟡",
-    filter: (r) => r.status === "waiting_for_customer",
-    emptyTitle: "No pending replies needed",
-    emptyDescription: "Our team is not waiting for information from you right now.",
-    emptyIcon: "💬",
-  },
-  {
-    key: "resolved",
-    label: "Resolved",
-    icon: "✅",
-    filter: (r) => ["resolved", "closed"].includes(r.status as RequestStatus),
-    emptyTitle: "No resolved requests",
-    emptyDescription: "Resolved and closed requests will appear here.",
-    emptyIcon: "🏁",
-  },
+/** Lifecycle groups. The filter runs on the server, so counts and pages stay correct. */
+const REQUEST_GROUP_TABS: GroupTab[] = [
+  { key: "all", label: "All", hint: "All of your requests" },
+  { key: "active", label: "Active", hint: "Submitted or being handled by our team" },
+  { key: "waiting", label: "Awaiting your reply", hint: "Our team needs information from you" },
+  { key: "completed", label: "Completed", hint: "Resolved or closed" },
 ];
 
-interface RequestListProps {
-  requests: SupportRequest[];
+interface RequestGroupTabsProps {
+  value: RequestGroup;
+  onChange: (group: RequestGroup) => void;
 }
 
-export function RequestList({ requests }: RequestListProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("all");
+/** Tab bar with arrow-key navigation (WAI-ARIA tabs pattern). */
+export function RequestGroupTabs({ value, onChange }: RequestGroupTabsProps) {
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const currentTab = TABS.find((t) => t.key === activeTab)!;
-  const filtered = requests.filter(currentTab.filter);
-  const waitingCount = requests.filter((r) => r.status === "waiting_for_customer").length;
+  function focusTab(index: number) {
+    const next = REQUEST_GROUP_TABS[(index + REQUEST_GROUP_TABS.length) % REQUEST_GROUP_TABS.length];
+    refs.current[next.key]?.focus();
+    onChange(next.key);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key === "ArrowRight") focusTab(index + 1);
+    else if (event.key === "ArrowLeft") focusTab(index - 1);
+    else if (event.key === "Home") focusTab(0);
+    else if (event.key === "End") focusTab(REQUEST_GROUP_TABS.length - 1);
+  }
+
+  const selected = REQUEST_GROUP_TABS.find((t) => t.key === value);
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm">
-        {TABS.map((tab) => {
-          const count = tab.key === "waiting" ? waitingCount : undefined;
+      <div role="tablist" aria-label="Filter requests by status" className="flex flex-wrap gap-2">
+        {REQUEST_GROUP_TABS.map((tab, index) => {
+          const isSelected = tab.key === value;
           return (
             <button
               key={tab.key}
-              id={`tab-${tab.key}`}
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              ref={(el) => {
+                refs.current[tab.key] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`group-tab-${tab.key}`}
+              aria-selected={isSelected}
+              aria-controls="request-list"
+              tabIndex={isSelected ? 0 : -1}
+              onClick={() => onChange(tab.key)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
+              className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+                isSelected
+                  ? "border-brand-500 bg-brand-600 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-700"
               }`}
             >
-              <span>{tab.icon}</span>
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.label.split(" ")[0]}</span>
-              {count !== undefined && count > 0 && (
-                <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-xs font-bold ${activeTab === tab.key ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"}`}>
-                  {count}
-                </span>
-              )}
+              {tab.label}
             </button>
           );
         })}
       </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={currentTab.emptyIcon}
-          title={currentTab.emptyTitle}
-          description={currentTab.emptyDescription}
-          action={
-            activeTab === "all" ? (
-              <Link to="/new-request" className="btn-primary">
-                Submit a Request
-              </Link>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((req) => (
-            <RequestCard key={req.id} request={req} />
-          ))}
-        </div>
-      )}
+      {selected && <p className="mt-2 text-xs text-slate-500">{selected.hint}</p>}
     </div>
   );
 }

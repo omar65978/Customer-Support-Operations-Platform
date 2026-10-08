@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { AppLayout } from "../components/layout/AppLayout";
 import { Spinner } from "../components/ui/Spinner";
 import { createRequest } from "../api/requests";
+import { describeApiError } from "../api/errors";
 import type { RequestCategory, RequestPriority } from "../types";
 
 const CATEGORIES: { value: RequestCategory; label: string; icon: string }[] = [
@@ -60,8 +61,8 @@ export function NewRequestPage() {
         user!.id
       );
       navigate(`/requests/${req.id}`, { state: { success: true } });
-    } catch {
-      setErrors({ general: "Failed to submit your request. Please try again." });
+    } catch (err) {
+      setErrors({ general: describeApiError(err, "Failed to submit your request. Please try again.") });
     } finally {
       setIsSubmitting(false);
     }
@@ -70,7 +71,7 @@ export function NewRequestPage() {
   return (
     <AppLayout>
       <div className="mb-6 flex items-center gap-3">
-        <Link to="/dashboard" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+        <Link to="/dashboard" aria-label="Back to my requests" className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
@@ -84,14 +85,14 @@ export function NewRequestPage() {
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit} noValidate id="new-request-form" className="card p-8 space-y-6">
           {errors.general && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in">
+            <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in">
               {errors.general}
             </div>
           )}
 
           <div>
             <label htmlFor="request-title" className="label">
-              Request title <span className="text-red-500">*</span>
+              Request title <span className="text-red-500" aria-hidden="true">*</span>
             </label>
             <input
               id="request-title"
@@ -99,6 +100,7 @@ export function NewRequestPage() {
               value={title}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
               placeholder="Brief summary of your issue"
+              aria-invalid={errors.title ? true : undefined}
               maxLength={100}
               className={`input-field ${errors.title ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
             />
@@ -108,14 +110,15 @@ export function NewRequestPage() {
             </div>
           </div>
 
-          <div>
-            <label className="label">Category</label>
+          <fieldset>
+            <legend className="label">Category</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
                   type="button"
                   id={`category-${cat.value}`}
+                  aria-pressed={category === cat.value}
                   onClick={() => setCategory(cat.value)}
                   className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-sm font-medium transition-all hover:shadow-sm ${
                     category === cat.value
@@ -128,10 +131,10 @@ export function NewRequestPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div>
-            <label className="label">Priority</label>
+          <fieldset>
+            <legend className="label">Urgency</legend>
             <div className="space-y-2">
               {PRIORITIES.map((p) => (
                 <label
@@ -159,11 +162,11 @@ export function NewRequestPage() {
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div>
             <label htmlFor="request-description" className="label">
-              Description <span className="text-red-500">*</span>
+              Description <span className="text-red-500" aria-hidden="true">*</span>
             </label>
             <textarea
               id="request-description"
@@ -172,6 +175,7 @@ export function NewRequestPage() {
               onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
               placeholder="Describe your issue in detail."
               className={`input-field resize-none ${errors.description ? "border-red-300 focus:border-red-400 focus:ring-red-100" : ""}`}
+              aria-invalid={errors.description ? true : undefined}
             />
             {errors.description && <p className="error-text">{errors.description}</p>}
           </div>

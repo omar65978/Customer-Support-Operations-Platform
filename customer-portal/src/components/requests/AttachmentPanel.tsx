@@ -1,11 +1,15 @@
-import { useState, useRef } from "react";
+import { useState, useRef, type ChangeEvent } from "react";
 import type { Attachment } from "../../types";
-import { uploadAttachment, getDownloadUrl } from "../../api/attachments";
+import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_EXTENSIONS,
+  ATTACHMENT_MAX_BYTES,
+  downloadAttachment,
+  uploadAttachment,
+  validateAttachmentFile,
+} from "../../api/attachments";
+import { describeApiError } from "../../api/errors";
 import { Spinner } from "../ui/Spinner";
-
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".txt", ".csv", ".doc", ".docx", ".xls", ".xlsx"];
-const MAX_SIZE_MB = 10;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -26,81 +30,95 @@ interface AttachmentPanelProps {
   attachments: Attachment[];
   canUpload: boolean;
   onUploaded: (attachment: Attachment) => void;
-  token: string;
 }
 
-export function AttachmentPanel({ requestId, attachments, canUpload, onUploaded, token }: AttachmentPanelProps) {
+export function AttachmentPanel({ requestId, attachments, canUpload, onUploaded }: AttachmentPanelProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!fileInputRef.current) return;
-    fileInputRef.current.value = "";
-
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset the input so the same file can be chosen again after an error.
+    event.target.value = "";
     if (!file) return;
 
-    if (file.size > MAX_SIZE_BYTES) {
-      setUploadError(`File exceeds the ${MAX_SIZE_MB} MB limit.`);
+    const problem = validateAttachmentFile(file);
+    if (problem) {
+      setStatus("");
+      setError(problem);
       return;
     }
 
-    const ext = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setUploadError(`File type not allowed. Accepted: ${ALLOWED_EXTENSIONS.join(", ")}`);
-      return;
-    }
-
-    setUploadError("");
+    setError("");
+    setStatus("");
     setIsUploading(true);
     try {
       const attachment = await uploadAttachment(requestId, file);
       onUploaded(attachment);
-    } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "response" in err
-        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined;
-      setUploadError(msg || "Upload failed. Please try again.");
+      setStatus(`${file.name} was attached.`);
+    } catch (err) {
+      setError(describeApiError(err, "The file could not be uploaded. It was not attached. Please try again."));
     } finally {
       setIsUploading(false);
     }
   }
 
+  async function handleDownload(attachment: Attachment) {
+    setError("");
+    setStatus("");
+    setDownloadingId(attachment.id);
+    try {
+      await downloadAttachment(attachment);
+    } catch (err) {
+      setError(describeApiError(err, `${attachment.originalName} could not be downloaded. Please try again.`));
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-slate-700">
-          Attachments {attachments.length > 0 && <span className="text-slate-400 font-normal">({attachments.length})</span>}
+    <section aria-labelledby="attachments-heading" className="mt-6">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 id="attachments-heading" className="text-sm font-semibold text-slate-700">
+          Attachments {attachments.length > 0 && <span className="font-normal text-slate-400">({attachments.length})</span>}
         </h3>
         {canUpload && (
           <label
             htmlFor="file-upload"
-            className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors ${isUploading ? "opacity-60 pointer-events-none" : ""}`}
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 focus-within:ring-2 focus-within:ring-brand-400 ${
+              isUploading ? "pointer-events-none opacity-60" : ""
+            }`}
           >
             {isUploading ? <Spinner size="sm" /> : (
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
             )}
-            {isUploading ? "Uploading…" : "Attach File"}
+            {isUploading ? "Uploading…" : "Attach file"}
             <input
               id="file-upload"
               ref={fileInputRef}
               type="file"
               className="sr-only"
-              accept={ALLOWED_EXTENSIONS.join(",")}
+              accept={ATTACHMENT_ACCEPT}
               onChange={handleFileChange}
               disabled={isUploading}
-              aria-label="Upload attachment"
             />
           </label>
         )}
       </div>
 
-      {uploadError && (
-        <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 border border-red-100" role="alert">
-          {uploadError}
+      <p className="mb-2 text-xs text-slate-400">
+        {ATTACHMENT_EXTENSIONS.join(", ")} · up to {formatBytes(ATTACHMENT_MAX_BYTES)} per file
+      </p>
+
+      <div aria-live="polite" className="sr-only">{status}</div>
+      {error && (
+        <p className="mb-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+          {error}
         </p>
       )}
 
@@ -111,22 +129,25 @@ export function AttachmentPanel({ requestId, attachments, canUpload, onUploaded,
           {attachments.map((att) => (
             <li key={att.id} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
               <FileIcon mimeType={att.mimeType} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-700 truncate">{att.originalName}</p>
-                <p className="text-xs text-slate-400">{formatBytes(att.size)} · {att.uploaderName}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-slate-700" title={att.originalName}>{att.originalName}</p>
+                <p className="text-xs text-slate-400">
+                  {formatBytes(att.size)} · {att.uploaderName}
+                </p>
               </div>
-              <a
-                href={`${getDownloadUrl(att.id)}?token=${token}`}
-                download={att.originalName}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0"
+              <button
+                type="button"
+                onClick={() => void handleDownload(att)}
+                disabled={downloadingId === att.id}
+                className="shrink-0 rounded text-xs font-medium text-brand-600 hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:opacity-50"
                 aria-label={`Download ${att.originalName}`}
               >
-                Download
-              </a>
+                {downloadingId === att.id ? "Downloading…" : "Download"}
+              </button>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

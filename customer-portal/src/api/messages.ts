@@ -1,58 +1,42 @@
 import apiClient from "./axios";
-import type { Message, NewMessagePayload } from "../types";
+import type { Message } from "../types";
 
-export async function fetchMessages(requestId: string): Promise<Message[]> {
-  const response = await apiClient.get<any[]>(
-    `/messages?request_id=eq.${requestId}&order=created_at.asc`
-  );
-  const data = Array.isArray(response.data) ? response.data : [];
-  
-  return data
-    .map((m) => ({
-      ...m,
-      isInternal: m.is_internal ?? m.isInternal ?? false,
-      requestId: m.request_id ?? m.requestId,
-      authorId: m.author_id ?? m.authorId,
-      authorName: m.author_name ?? m.authorName,
-      authorRole: m.author_role ?? m.authorRole,
-      createdAt: m.created_at ?? m.createdAt,
-    }))
-    .filter((m) => !m.isInternal);
-}
-
-export async function sendMessage(
-  requestId: string,
-  payload: NewMessagePayload
-): Promise<Message> {
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
-  const response = await apiClient.post<any[]>(
-    "/messages",
-    {
-      request_id: requestId,
-      content: payload.content,
-      is_internal: false,
-      author_id: user?.id || null,
-      author_name: user?.name || "Customer",
-      author_role: user?.role || "customer",
-      created_at: new Date().toISOString(),
-    },
-    {
-      headers: {
-        Prefer: "return=representation",
-      },
-    }
-  );
-
-  const m = response.data[0];
+function mapMessage(m: any): Message {
   return {
-    ...m,
-    isInternal: m.is_internal ?? m.isInternal ?? false,
+    id: m.id,
     requestId: m.request_id ?? m.requestId,
     authorId: m.author_id ?? m.authorId,
-    authorName: m.author_name ?? m.authorName,
+    authorName: m.author_name ?? m.authorName ?? "Support team",
     authorRole: m.author_role ?? m.authorRole,
+    content: m.content,
+    isInternal: Boolean(m.is_internal ?? m.isInternal ?? false),
     createdAt: m.created_at ?? m.createdAt,
   };
+}
+
+/**
+ * Customer-visible conversation. The query asks for public messages only, and the client
+ * filters again as a second safeguard. Row Level Security is the enforcing layer.
+ */
+export async function fetchMessages(requestId: string): Promise<Message[]> {
+  const response = await apiClient.get<any[]>("/messages", {
+    params: {
+      select: "*",
+      request_id: `eq.${requestId}`,
+      is_internal: "eq.false",
+      order: "created_at.asc",
+    },
+  });
+  const rows = Array.isArray(response.data) ? response.data.map(mapMessage) : [];
+  return rows.filter((m) => !m.isInternal);
+}
+
+/** The author is set by the database from the signed-in account, so the client does not send it. */
+export async function sendMessage(requestId: string, content: string): Promise<Message> {
+  const response = await apiClient.post<any[]>(
+    "/messages",
+    { request_id: requestId, content, is_internal: false },
+    { headers: { Prefer: "return=representation" } }
+  );
+  return mapMessage(response.data[0]);
 }

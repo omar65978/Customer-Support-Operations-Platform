@@ -1,120 +1,75 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '../contexts/AuthContext';
-import type { ReactNode } from 'react';
+import { render, screen } from '@testing-library/react';
+import App from '../App';
 
-vi.mock('../api/requests', () => ({
-  fetchMyRequests: vi.fn().mockResolvedValue([]),
-  fetchRequest: vi.fn().mockResolvedValue(null),
-  createRequest: vi.fn(),
-  updateRequestStatus: vi.fn(),
-}));
+vi.mock('../api/requests', async () => {
+  const actual = await vi.importActual<typeof import('../api/requests')>('../api/requests');
+  return {
+    ...actual,
+    fetchMyRequests: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 5 }),
+    fetchRequest: vi.fn().mockRejectedValue(new Error('not visible')),
+    createRequest: vi.fn(),
+    reopenRequest: vi.fn(),
+  };
+});
 
 vi.mock('../api/messages', () => ({
   fetchMessages: vi.fn().mockResolvedValue([]),
   sendMessage: vi.fn(),
 }));
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <div>Loading</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+vi.mock('../api/attachments', async () => {
+  const actual = await vi.importActual<typeof import('../api/attachments')>('../api/attachments');
+  return { ...actual, fetchAttachments: vi.fn().mockResolvedValue([]) };
+});
+
+const CUSTOMER = { id: 'c1', email: 'alice@example.com', name: 'Alice Johnson', role: 'customer' };
+
+function signIn(user: object) {
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('token', 'test-token');
 }
 
-function PublicRoute({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <div>Loading</div>;
-  if (user) return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-}
-
-describe('Protected Routes', () => {
+describe('route protection (real App routes)', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
+    window.history.pushState({}, '', '/');
   });
 
-  it('redirects unauthenticated user from /dashboard to /login', async () => {
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<div>Login Page</div>} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <div>Dashboard</div>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </AuthProvider>
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Login Page')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
+  it('sends a signed-out visitor from /dashboard to the sign-in page', async () => {
+    window.history.pushState({}, '', '/dashboard');
+    render(<App />);
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
   });
 
-  it('renders protected content for authenticated user', async () => {
-    const stored = { id: 'u1', email: 'alice@example.com', name: 'Alice', role: 'customer' };
-    localStorage.setItem('user', JSON.stringify(stored));
-    localStorage.setItem('token', 'valid-token');
-
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<div>Login Page</div>} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <div>Dashboard Content</div>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </AuthProvider>
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard Content')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
+  it('lets a customer into the dashboard', async () => {
+    signIn(CUSTOMER);
+    window.history.pushState({}, '', '/dashboard');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'My Support Requests' })).toBeInTheDocument();
   });
 
-  it('redirects authenticated user away from /login to /dashboard', async () => {
-    const stored = { id: 'u1', email: 'alice@example.com', name: 'Alice', role: 'customer' };
-    localStorage.setItem('user', JSON.stringify(stored));
-    localStorage.setItem('token', 'valid-token');
+  it('does not let a stored staff session into the customer portal', async () => {
+    signIn({ ...CUSTOMER, id: 'a1', role: 'agent' });
+    window.history.pushState({}, '', '/dashboard');
+    render(<App />);
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(localStorage.getItem('user')).toBeNull();
+  });
 
-    render(
-      <MemoryRouter initialEntries={['/login']}>
-        <AuthProvider>
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <div>Login Page</div>
-                </PublicRoute>
-              }
-            />
-            <Route path="/dashboard" element={<div>Dashboard Content</div>} />
-          </Routes>
-        </AuthProvider>
-      </MemoryRouter>
-    );
+  it('shows a clear error when a request cannot be loaded (no access or not found)', async () => {
+    signIn(CUSTOMER);
+    window.history.pushState({}, '', '/requests/someone-elses-request');
+    render(<App />);
+    expect(await screen.findByText('Failed to load this request. Please try again.')).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText('Dashboard Content')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
+  it('sends unknown addresses to the dashboard', async () => {
+    signIn(CUSTOMER);
+    window.history.pushState({}, '', '/no-such-page');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'My Support Requests' })).toBeInTheDocument();
   });
 });

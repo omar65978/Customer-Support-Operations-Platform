@@ -1,7 +1,8 @@
   import { useState, type FormEvent } from "react";
-  import { Link, useNavigate } from "react-router-dom";
+  import { Link, useNavigate, useSearchParams } from "react-router-dom";
   import { useAuth } from "../contexts/AuthContext";
   import { Spinner } from "../components/ui/Spinner";
+  import { describeApiError } from "../api/errors";
 
   interface FormErrors {
     email?: string;
@@ -12,6 +13,8 @@
   export function LoginPage() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sessionExpired = searchParams.get("reason") === "expired";
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [errors, setErrors] = useState<FormErrors>({});
@@ -34,8 +37,8 @@
       try {
         await login({ email: email.trim(), password });
         navigate("/dashboard");
-      } catch {
-        setErrors({ general: "Invalid email or password. Please try again." });
+      } catch (err) {
+        setErrors({ general: describeApiError(err, "We could not sign you in. Please try again.") });
       } finally {
         setIsSubmitting(false);
       }
@@ -56,8 +59,13 @@
 
           <div className="glass-card p-8">
             <form onSubmit={handleSubmit} noValidate id="login-form">
+              {sessionExpired && !errors.general && (
+                <div role="status" className="mb-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Your session has expired. Please sign in again.
+                </div>
+              )}
               {errors.general && (
-                <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in">
+                <div role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 animate-fade-in">
                   {errors.general}
                 </div>
               )}
@@ -68,6 +76,7 @@
                   id="email"
                   type="email"
                   autoComplete="email"
+                  aria-invalid={errors.email ? true : undefined}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -82,6 +91,7 @@
                   id="password"
                   type="password"
                   autoComplete="current-password"
+                  aria-invalid={errors.password ? true : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -109,7 +119,7 @@
           </div>
 
           <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-brand-200">
-            <p className="font-medium mb-1 text-brand-100">Demo credentials</p>
+            <p className="font-medium mb-1 text-brand-100">Demo customer accounts</p>
             <p>alice@example.com · password123</p>
             <p>bob@example.com · password123</p>
           </div>

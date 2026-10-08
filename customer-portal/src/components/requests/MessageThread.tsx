@@ -36,7 +36,7 @@ function MessageBubble({
             : "bg-gradient-to-br from-slate-400 to-slate-600"
         }`}
       >
-        {isAgent ? "🛡" : message.authorName.charAt(0).toUpperCase()}
+        <span aria-hidden="true">{isAgent ? "🛡" : message.authorName.charAt(0).toUpperCase()}</span>
       </div>
 
       <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"} flex flex-col gap-1`}>
@@ -64,12 +64,12 @@ export function MessageThread({ messages, currentUserId }: MessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages]);
 
   if (messages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
+      <div className="flex flex-col items-center justify-center py-10 text-center" role="status">
         <span className="text-3xl mb-2">💬</span>
         <p className="text-sm text-slate-500">No messages yet. Start the conversation below.</p>
       </div>
@@ -77,7 +77,7 @@ export function MessageThread({ messages, currentUserId }: MessageThreadProps) {
   }
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-5 py-4" role="log" aria-live="polite" aria-label="Conversation">
       {messages.map((msg) => (
         <MessageBubble
           key={msg.id}
