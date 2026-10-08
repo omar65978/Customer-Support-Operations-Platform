@@ -159,7 +159,7 @@ export function RequestDetailPage() {
             <span className="text-slate-200" aria-hidden="true">·</span>
             <span className="text-sm text-slate-400">{CATEGORY_LABELS[request.category]}</span>
           </div>
-          <h1 className="page-title truncate">{request.title}</h1>
+          <h1 className="page-title break-words">{request.title}</h1>
         </div>
       </div>
 

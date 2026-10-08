@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
-import { EMPTY, Subscription, catchError, forkJoin, interval, map, of, switchMap } from 'rxjs';
+import { EMPTY, Subscription, catchError, interval, map, of, switchMap } from 'rxjs';
 import { StatsService, type AgentWorkload, type WorkspaceStats } from '../../core/services/stats.service';
 import { AuthService } from '../../core/services/auth.service';
 import type { User } from '../../core/models';

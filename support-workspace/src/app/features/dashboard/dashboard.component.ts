@@ -180,8 +180,8 @@ const SORT_FIELDS: Record<string, SortField> = {
           </ng-container>
 
           <ng-container matColumnDef="category">
-            <th mat-header-cell *matHeaderCellDef>Category</th>
-            <td mat-cell *matCellDef="let r">{{ categoryLabel(r.category) }}</td>
+            <th mat-header-cell *matHeaderCellDef class="col-optional">Category</th>
+            <td mat-cell *matCellDef="let r" class="col-optional">{{ categoryLabel(r.category) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="priority">
@@ -199,8 +199,8 @@ const SORT_FIELDS: Record<string, SortField> = {
           </ng-container>
 
           <ng-container matColumnDef="assignedAgentId">
-            <th mat-header-cell *matHeaderCellDef>Assigned to</th>
-            <td mat-cell *matCellDef="let r">
+            <th mat-header-cell *matHeaderCellDef class="col-optional">Assigned to</th>
+            <td mat-cell *matCellDef="let r" class="col-optional">
               <span class="unassigned-text" *ngIf="!r.assignedAgentId">Unassigned</span>
               <span class="assigned-text" *ngIf="r.assignedAgentId">{{ agentName(r.assignedAgentId) }}</span>
             </td>
@@ -404,6 +404,13 @@ const SORT_FIELDS: Record<string, SortField> = {
     .result-count { color: #64748b; font-size: 0.8rem; margin: 4px 0 0; min-height: 1em; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     .requests-table th.mat-mdc-header-cell { font-weight: 600; }
+    .requests-table .mat-column-title { min-width: 220px; }
+    .view-row mat-button-toggle-group { flex-wrap: wrap; height: auto; border-radius: 12px; }
+    .status-badge, .priority-badge { white-space: nowrap; }
+    .assigned-text { white-space: nowrap; }
+    @media (max-width: 720px) {
+      .col-optional { display: none; }
+    }
     .request-link:focus-visible, .view-row button:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
     @media (max-width: 768px) {
       .search-field, .filter-field { flex: 1 1 100%; min-width: 0; }

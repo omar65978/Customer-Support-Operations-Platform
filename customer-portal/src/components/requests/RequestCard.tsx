@@ -34,7 +34,7 @@ export function RequestCard({ request }: RequestCardProps) {
             <span className="text-slate-200">•</span>
             <span className="text-xs text-slate-400">{CATEGORY_LABELS[request.category]}</span>
           </div>
-          <h3 className="font-semibold text-slate-900 group-hover:text-brand-700 transition-colors truncate">
+          <h3 className="font-semibold text-slate-900 group-hover:text-brand-700 transition-colors break-words">
             {request.title}
           </h3>
           <p className="mt-1 text-sm text-slate-500 line-clamp-2">

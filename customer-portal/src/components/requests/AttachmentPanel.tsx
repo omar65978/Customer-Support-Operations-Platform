@@ -3,7 +3,6 @@ import type { Attachment } from "../../types";
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_EXTENSIONS,
-  ATTACHMENT_MAX_BYTES,
   downloadAttachment,
   uploadAttachment,
   validateAttachmentFile,
@@ -80,7 +79,7 @@ export function AttachmentPanel({ requestId, attachments, canUpload, onUploaded 
   }
 
   return (
-    <section aria-labelledby="attachments-heading" className="mt-6">
+    <section aria-labelledby="attachments-heading">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 id="attachments-heading" className="text-sm font-semibold text-slate-700">
           Attachments {attachments.length > 0 && <span className="font-normal text-slate-400">({attachments.length})</span>}
@@ -112,7 +111,7 @@ export function AttachmentPanel({ requestId, attachments, canUpload, onUploaded 
       </div>
 
       <p className="mb-2 text-xs text-slate-400">
-        {ATTACHMENT_EXTENSIONS.join(", ")} · up to {formatBytes(ATTACHMENT_MAX_BYTES)} per file
+        {ATTACHMENT_EXTENSIONS.join(", ")} · up to 10 MB per file
       </p>
 
       <div aria-live="polite" className="sr-only">{status}</div>

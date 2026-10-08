@@ -59,7 +59,7 @@ export class AuthService {
    */
   login(credentials: LoginCredentials): Observable<User> {
     return this.http
-      .post<TokenResponse & { access_token: string }>(
+      .post<TokenResponse>(
         `${environment.supabaseUrl}/auth/v1/token?grant_type=password`,
         { email: credentials.email, password: credentials.password },
         { headers: { 'Content-Type': 'application/json', apikey: environment.supabaseAnonKey } }

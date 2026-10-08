@@ -7,11 +7,11 @@ import { NewRequestPage } from '../pages/NewRequestPage';
 import * as requestsApi from '../api/requests';
 
 vi.mock('../api/requests', () => ({
+  DEFAULT_REQUEST_FILTERS: { group: 'all', priority: '', category: '', search: '', sort: 'updated' },
   fetchMyRequests: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 5 }),
   fetchRequest: vi.fn(),
   createRequest: vi.fn(),
-  updateRequestStatus: vi.fn(),
-  fetchAgents: vi.fn().mockResolvedValue([]),
+  reopenRequest: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
