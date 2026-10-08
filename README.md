@@ -73,7 +73,7 @@ cd support-workspace && npm test    # Karma/Jasmine: 52 specs, headless Chrome
 cd support-workspace && npm run build
 ```
 
-The database checks in `supabase/tests/rls_checks.sql` (78 checks) run inside the Supabase SQL Editor after the migration and seed. See [supabase/README.md](supabase/README.md).
+The database checks in `supabase/tests/rls_checks.sql` (83 checks) run inside the Supabase SQL Editor after the migration and seed. See [supabase/README.md](supabase/README.md).
 
 ## Project structure
 

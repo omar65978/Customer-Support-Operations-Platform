@@ -663,7 +663,7 @@ export class RequestDetailComponent implements OnInit, OnDestroy {
       return 'This request is resolved. Change its status to In Progress to reopen the conversation.';
     }
     if (this.request?.status === 'closed') {
-      return 'This request is closed. Replies, notes and attachments are no longer accepted.';
+      return 'This request is closed. Change its status to In Progress to reopen the conversation.';
     }
     return '';
   }

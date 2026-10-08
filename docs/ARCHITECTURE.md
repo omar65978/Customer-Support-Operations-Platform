@@ -21,7 +21,7 @@ This document explains how the platform meets the milestone requirements, which 
 | Invalid actions handled safely | Lifecycle and permission rules raise readable errors; the UI shows them and keeps the user's input | migration §4, both apps' error helpers | Implemented |
 | Loading, empty, validation, failure and success states | Both apps show each state; forms explain problems; success banners and snackbars | all pages and components | Implemented |
 | Request model (reference, description, category, urgency, status, customer, owner, activity) | `requests` (+ `messages` as activity, `updated_at`, `resolved_at`) | migration §1 | Implemented |
-| Lifecycle open, in progress, waiting for customer, resolved, closed; closed may reopen | Transition table enforced by the database; reopening from resolved | migration §4, `STATUS_TRANSITIONS` in both apps | Implemented (closed is final; see §14) |
+| Lifecycle open, in progress, waiting for customer, resolved, closed; closed may reopen | Transition table enforced by the database; resolved and closed requests can be reopened to In progress | migration §4, `STATUS_TRANSITIONS` in both apps | Implemented |
 | Agents find urgent and unassigned work, claim, message, add notes, progress, complete | Work-queue views *Needs attention*, *Unassigned*, *Urgent*, *Assigned to me*; claim with a conditional update; reply and internal-note boxes; status changes | `support-workspace/src/app/features/dashboard`, `request-detail` | Implemented |
 | Managers review the whole workload and reassign | Manager sees all requests; *Overview* shows counts and workload per agent; reassign from the request page | `features/manager`, `request-detail` | Implemented |
 | Search, filter, sort and pagination on the server | `and=(…)`/`or=(…)` filters, `order`, `Range`, `count=exact` | `buildStaffRequestParams`, `buildCustomerRequestParams` | Implemented |
@@ -31,7 +31,7 @@ This document explains how the platform meets the milestone requirements, which 
 | Manager summary without loading the whole dataset | Counts with `Range: 0-0` and `Prefer: count=exact`; per-agent counts | `stats.service.ts` | Implemented |
 | Responsive layout | Checked at 1280 px and 390 px in both apps (screens reviewed) | CSS in components | Implemented |
 | Keyboard and semantic accessibility | Real buttons and labels; tabs with arrow keys; live regions for messages and status; visible focus | `RequestList.tsx`, `MessageThread.tsx`, Angular templates | Partially (no assistive-technology audit) |
-| Tests | React: 47 Vitest tests; Angular: 52 Karma specs; database: 78 SQL checks | §13 | Implemented |
+| Tests | React: 47 Vitest tests; Angular: 52 Karma specs; database: 83 SQL checks | §13 | Implemented |
 | README and run instructions | Root README, per-app READMEs, `docs/SETUP.md` | docs | Implemented |
 | Safe environment examples | `.env.example` files with placeholders; generated and local env files are git-ignored | both apps, `.gitignore` | Implemented |
 | Test users or documented creation steps | Five demo accounts, `seed.sql`, role SQL | `docs/SETUP.md` §3 | Implemented |
@@ -41,7 +41,7 @@ This document explains how the platform meets the milestone requirements, which 
 
 | Role | Used in | Can |
 |---|---|---|
-| Customer | Customer Portal | Submit requests, see only their requests, reply, reopen a resolved request, attach and download files on their requests |
+| Customer | Customer Portal | Submit requests, see only their requests, reply, reopen a resolved or closed request, attach and download files on their requests |
 | Agent | Support Workspace | See their own requests and unassigned ones, take an unassigned request, reply and add internal notes on their requests, change status, attach files |
 | Manager | Support Workspace | See all requests, take or reassign any request, reply on any active request, close resolved requests, see the team overview |
 
@@ -78,8 +78,8 @@ Messages (`messages`) are append-only. They carry the author's id, name and role
 | In progress | Waiting for customer | Assigned agent or manager | |
 | Waiting for customer | In progress | Automatic | A customer reply moves it back, inside the same transaction as the message |
 | In progress, Waiting for customer | Resolved | Assigned agent or manager | Sets `resolved_at` |
-| Resolved | In progress | Customer (reopen) or assigned staff | Clears `resolved_at` |
-| Resolved | Closed | Assigned agent or manager, with confirmation | Closed is final |
+| Resolved or Closed | In progress | Customer (reopen) or assigned staff | Clears `resolved_at`; the conversation reopens |
+| Resolved | Closed | Assigned agent or manager, with confirmation | Closing is only possible from Resolved |
 
 Other rules:
 - Replies, internal notes and attachments are accepted only while the request is Open, In progress or Waiting for customer. Resolved and Closed requests are read-only until reopened.
@@ -97,7 +97,7 @@ Other rules:
 | Reply to the customer | Yes, if active | Yes, if active | No | Yes, if active |
 | Add an internal note | No | Yes, if active | No | Yes, if active |
 | Take the request | No | Not applicable | Yes (for self) | Yes |
-| Change status | Only Resolved → In progress | Yes, along the table | No | Yes, along the table |
+| Change status | Only Resolved or Closed → In progress | Yes, along the table | No | Yes, along the table |
 | Assign or reassign | No | No | No | Yes (to an agent or manager; never clears the owner) |
 | Close a resolved request | No | Yes | No | Yes |
 | Upload an attachment | Yes, if active | Yes, if active | No | Yes, if active |
@@ -128,8 +128,8 @@ Threats addressed, each covered by a check in `supabase/tests/rls_checks.sql`:
 - Changing one's own role (A6)
 - Agents reassigning, unassigning or taking another agent's request (D10, D11, E2, E1)
 - Racing two agents for the same request (E1)
-- Skipping lifecycle steps and reopening closed requests (D12, G7, G13, G15)
-- Writing to closed or resolved requests (G8, G14, H15)
+- Skipping lifecycle steps (D12, G7, G17, G20), and posting on closed requests (G13)
+- Writing to resolved or closed requests (G8, G13, H15)
 - Attaching metadata for a file that was not uploaded (H6), for a disallowed type (H8), or for an oversized file (H9)
 - Attaching a file to someone else's folder (H2, H3)
 
@@ -190,7 +190,7 @@ Not done: a screen-reader or colour-contrast audit.
 | Customer Portal lint and build | `npm run lint`, `npm run build` | Build passes; one existing lint warning (`useAuth` exported from a component file, unchanged from before) |
 | Support Workspace specs | `npm test` in `support-workspace` (Karma, headless Chrome) | 52 specs, passing |
 | Support Workspace build | `npm run build` (development build verified; production build verified in a scratch copy without the Google Fonts links, which the sandbox cannot reach) | Passing |
-| Database security and workflow checks | `supabase/tests/rls_checks.sql` on PostgreSQL 17 with a local Supabase stand-in for roles, `auth` and `storage` | 78 checks, passing, rolled back |
+| Database security and workflow checks | `supabase/tests/rls_checks.sql` on PostgreSQL 17 with a local Supabase stand-in for roles, `auth` and `storage` | 83 checks, passing, rolled back |
 | Migration idempotency | Migration applied twice | Passing |
 | Browser checks against a local mock of the Supabase APIs | Scripted in a sandbox, not committed | 19 checks passing: sign-in, scoped lists, reopen, reply, draft handling, upload, download, claim, internal note separation, manager workload, no page errors |
 
@@ -207,7 +207,7 @@ These were open in the requirements. The assumption used is listed with the effe
 |---|---|---|
 | Should agents see every unassigned request, or only those for their team or category? | All unassigned requests are visible to all agents, so they can claim work | Add a `team` column and narrow the `requests_select` policy |
 | Can an agent reassign or hand back a request? | No. Only managers reassign. An owner cannot be cleared | Relax the rule in `requests_guard` |
-| Can a customer reopen a closed request? | No. Closed is final; the customer submits a new request | Add `closed → in_progress` for customers |
+| Can a customer reopen a closed request? | Yes. The wording "a completed request may become active again" covers resolved and closed requests. It returns to In progress and accepts replies again | Remove `closed → in_progress` from the transition list and the customer rule |
 | Can staff add internal notes to resolved requests? | No. Reopen first | Allow `resolved` in `can_post_to_request` |
 | Should customers see the assigned agent's name? | No. They see "A support agent" | Expose a name through a view |
 | Should files uploaded by staff be visible to customers? | Yes. Attachments follow the request, not the message | Add an `is_internal` flag to `attachments` and a UI toggle |

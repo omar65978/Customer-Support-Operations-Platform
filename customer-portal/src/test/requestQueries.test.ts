@@ -103,6 +103,6 @@ describe('customer request queries', () => {
     api.patch.mockResolvedValueOnce({ data: [] });
 
     await expect(reopenRequest('r1')).rejects.toBeInstanceOf(ConflictError);
-    expect(api.patch.mock.calls[0][2]).toMatchObject({ params: { id: 'eq.r1', status: 'eq.resolved' } });
+    expect(api.patch.mock.calls[0][2]).toMatchObject({ params: { id: 'eq.r1', status: 'in.(resolved,closed)' } });
   });
 });

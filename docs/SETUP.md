@@ -48,7 +48,7 @@ Customers never need this step.
 
 ## 4. Run the security checks (optional)
 
-Run `supabase/tests/rls_checks.sql` in the SQL Editor after the seed. It wraps all checks in a transaction that rolls back, so no data changes. A passing run prints 78 `PASS` notices. The script stops with an error naming the first failed check.
+Run `supabase/tests/rls_checks.sql` in the SQL Editor after the seed. It wraps all checks in a transaction that rolls back, so no data changes. A passing run prints 83 `PASS` notices. The script stops with an error naming the first failed check.
 
 ## 5. Run both apps on your computer
 

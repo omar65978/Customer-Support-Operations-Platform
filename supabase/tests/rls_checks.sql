@@ -281,15 +281,27 @@ select pg_temp.expect_rows('G11 manager closes a request after resolution',
   $q$update public.requests set status = 'resolved' where reference = 'REQ-000104' and status = 'in_progress'$q$, 1);
 select pg_temp.expect_rows('G12 manager closes the resolved request',
   $q$update public.requests set status = 'closed' where reference = 'REQ-000104' and status = 'resolved'$q$, 1);
-select pg_temp.expect_blocked('G13 closed request cannot be reopened by the manager',
-  $q$update public.requests set status = 'in_progress' where reference = 'REQ-000104'$q$);
-select pg_temp.expect_blocked('G14 closed request does not accept messages',
+select pg_temp.expect_blocked('G13 closed request does not accept messages',
   format($q$insert into public.messages (request_id, author_id, author_name, author_role, content, is_internal)
             values (%L, pg_temp.uid('manager@support.com'), 'x', 'manager', 'Message on a closed request', false)$q$, pg_temp.rid('REQ-000104')));
 
 select pg_temp.as_user('bob@example.com');
-select pg_temp.expect_blocked('G15 customer cannot reopen a closed request',
-  $q$update public.requests set status = 'in_progress' where reference = 'REQ-000104'$q$);
+select pg_temp.expect_rows('G14 customer reopens a closed request',
+  $q$update public.requests set status = 'in_progress' where reference = 'REQ-000104' and status = 'closed'$q$, 1);
+select pg_temp.expect_count('G15 reopening clears resolved_at',
+  $q$select count(*) from public.requests where reference = 'REQ-000104' and status = 'in_progress' and resolved_at is null$q$, 1);
+select pg_temp.expect_blocked('G16 customer cannot close a reopened request',
+  $q$update public.requests set status = 'closed' where reference = 'REQ-000104'$q$);
+
+select pg_temp.as_user('manager@support.com');
+select pg_temp.expect_blocked('G17 a request cannot skip resolution (in progress -> closed)',
+  $q$update public.requests set status = 'closed' where reference = 'REQ-000104'$q$);
+select pg_temp.expect_rows('G18 manager resolves the reopened request',
+  $q$update public.requests set status = 'resolved' where reference = 'REQ-000104' and status = 'in_progress'$q$, 1);
+select pg_temp.expect_rows('G19 manager closes it again',
+  $q$update public.requests set status = 'closed' where reference = 'REQ-000104' and status = 'resolved'$q$, 1);
+select pg_temp.expect_blocked('G20 a closed request cannot move straight to resolved',
+  $q$update public.requests set status = 'resolved' where reference = 'REQ-000104'$q$);
 
 -- -----------------------------------------------------------------------------
 -- H. Attachments and private storage

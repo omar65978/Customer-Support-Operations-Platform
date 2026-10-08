@@ -1,6 +1,6 @@
 # Customer Portal (React)
 
-Customers sign in, submit requests, follow their conversation, reply, reopen resolved requests, and attach or download files.
+Customers sign in, submit requests, follow their conversation, reply, reopen resolved or closed requests, and attach or download files.
 
 ## Run
 

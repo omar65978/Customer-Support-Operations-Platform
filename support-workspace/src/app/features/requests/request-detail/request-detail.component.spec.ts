@@ -132,12 +132,14 @@ describe('RequestDetailComponent (internal notes and posting rules)', () => {
     expect(component.postingHint).toMatch(/take this request/i);
   });
 
-  it('does not allow posting on a closed request', () => {
+  it('does not allow posting on a closed request, but offers reopening', () => {
     const fixture = create(sarah, requestAssignedTo('a1', 'closed'));
     const component = fixture.componentInstance;
 
     expect(component.canPost).toBeFalse();
     expect(component.inactiveNotice).toMatch(/closed/i);
+    expect(component.availableTransitions.map((t) => t.value)).toEqual(['in_progress']);
+    expect(component.canChangeStatus).toBeTrue();
     component.replyControl.setValue('Too late to reply');
     component.sendReply();
     expect(messages.sendMessage).not.toHaveBeenCalled();

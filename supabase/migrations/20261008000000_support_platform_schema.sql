@@ -226,9 +226,10 @@ on conflict (id) do nothing;
 -- 4. Request lifecycle and assignment rules
 -- -----------------------------------------------------------------------------
 -- Lifecycle: open -> in_progress -> waiting_for_customer <-> in_progress
---            in_progress/waiting_for_customer -> resolved -> in_progress (reopen) | closed
+--            in_progress/waiting_for_customer -> resolved -> closed
+--            resolved or closed -> in_progress (reopen)
 -- Rules enforced below for signed-in users (SQL editor/service role bypass them):
---   * Customers submit open, unassigned requests and may only reopen a resolved one.
+--   * Customers submit open, unassigned requests and may only reopen a resolved or closed one.
 --   * Agents may claim an unassigned request for themselves; only managers reassign.
 --   * Requests cannot be unassigned, and their status cannot change until assigned.
 --   * Core details (title, description, category, customer) never change.
@@ -280,8 +281,8 @@ begin
     if v_role = 'customer' then
       if new.priority is distinct from old.priority
         or new.assigned_agent_id is distinct from old.assigned_agent_id
-        or not (old.status = 'resolved' and new.status = 'in_progress') then
-        raise exception 'Customers can only reopen a resolved request' using errcode = 'P0001';
+        or not (old.status in ('resolved', 'closed') and new.status = 'in_progress') then
+        raise exception 'Customers can only reopen a resolved or closed request' using errcode = 'P0001';
       end if;
     elsif v_role in ('agent', 'manager') then
       if new.assigned_agent_id is distinct from old.assigned_agent_id then
@@ -316,6 +317,7 @@ begin
         or (old.status = 'in_progress' and new.status in ('waiting_for_customer', 'resolved'))
         or (old.status = 'waiting_for_customer' and new.status in ('in_progress', 'resolved'))
         or (old.status = 'resolved' and new.status in ('in_progress', 'closed'))
+        or (old.status = 'closed' and new.status = 'in_progress')
       ) then
         raise exception 'A request cannot move from % to %', old.status, new.status using errcode = 'P0001';
       end if;

@@ -209,12 +209,20 @@ export function RequestDetailPage() {
               </div>
             )}
 
-            {request.status === "resolved" && (
+            {(request.status === "resolved" || request.status === "closed") && (
               <div className="border-t border-slate-100 px-6 py-5">
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                  <p className="text-sm font-medium text-emerald-800">✅ This request has been resolved</p>
-                  <p className="mt-1 text-sm text-emerald-700">
-                    If your issue persists or you need further help, you can reopen this request.
+                <div
+                  className={`rounded-xl border p-4 ${
+                    request.status === "resolved"
+                      ? "border-emerald-100 bg-emerald-50"
+                      : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <p className={`text-sm font-medium ${request.status === "resolved" ? "text-emerald-800" : "text-slate-700"}`}>
+                    {request.status === "resolved" ? "✅ This request has been resolved" : "🏁 This request is closed"}
+                  </p>
+                  <p className={`mt-1 text-sm ${request.status === "resolved" ? "text-emerald-700" : "text-slate-500"}`}>
+                    If your issue is not fixed or you need further help, you can reopen this request and continue the conversation.
                   </p>
                   {reopenError && <p className="mt-2 text-sm font-medium text-red-700" role="alert">{reopenError}</p>}
                   <button
@@ -226,20 +234,6 @@ export function RequestDetailPage() {
                   >
                     {isReopening ? <><Spinner size="sm" /> Reopening…</> : "Reopen Request"}
                   </button>
-                </div>
-              </div>
-            )}
-
-            {request.status === "closed" && (
-              <div className="border-t border-slate-100 px-6 py-5">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-700">🏁 This request is closed</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    If you need further assistance, please submit a new request.
-                  </p>
-                  <Link to="/new-request" className="btn-secondary mt-3 inline-flex">
-                    Submit New Request
-                  </Link>
                 </div>
               </div>
             )}

@@ -149,21 +149,21 @@ export async function createRequest(payload: NewRequestPayload, customerId: stri
 }
 
 /**
- * Reopens a resolved request. The update applies only while the request is still resolved,
- * so a stale screen cannot overwrite a newer state.
+ * Reopens a resolved or closed request. The update applies only while the request is still
+ * in one of those states, so a stale screen cannot overwrite a newer state.
  */
 export async function reopenRequest(id: string): Promise<SupportRequest> {
   const response = await apiClient.patch<any[]>(
     "/requests",
     { status: "in_progress" },
     {
-      params: { id: `eq.${id}`, status: "eq.resolved" },
+      params: { id: `eq.${id}`, status: "in.(resolved,closed)" },
       headers: { Prefer: "return=representation" },
     }
   );
   const row = Array.isArray(response.data) ? response.data[0] : undefined;
   if (!row) {
-    throw new ConflictError("This request is no longer resolved. Refresh the page to see its latest status.");
+    throw new ConflictError("This request is already active again. Refresh the page to see its latest status.");
   }
   return mapRequest(row);
 }

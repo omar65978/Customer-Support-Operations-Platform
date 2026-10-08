@@ -82,13 +82,14 @@ export const CATEGORY_LABELS: Record<RequestCategory, string> = {
 /**
  * Allowed status changes. The database enforces the same table, so an invalid change is
  * rejected even if this list is bypassed. Closing is only possible from Resolved.
+ * Resolved and closed requests can be reopened to In Progress.
  */
 export const STATUS_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
   open: ['in_progress'],
   in_progress: ['waiting_for_customer', 'resolved'],
   waiting_for_customer: ['in_progress', 'resolved'],
   resolved: ['in_progress', 'closed'],
-  closed: [],
+  closed: ['in_progress'],
 };
 
 /** Requests in these statuses accept replies, internal notes and attachments. */
