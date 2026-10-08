@@ -6,9 +6,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subscription, interval } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
-import { StatsService, type WorkspaceStats } from '../../core/services/stats.service';
+import { EMPTY, Subscription, catchError, forkJoin, interval, map, of, switchMap } from 'rxjs';
+import { StatsService, type AgentWorkload, type WorkspaceStats } from '../../core/services/stats.service';
+import { AuthService } from '../../core/services/auth.service';
+import type { User } from '../../core/models';
 
 @Component({
   selector: 'app-manager-dashboard',
@@ -26,11 +27,11 @@ import { StatsService, type WorkspaceStats } from '../../core/services/stats.ser
     <div class="mgr-header">
       <div>
         <h1 class="page-title">Manager Overview</h1>
-        <p class="page-subtitle">Live support workload summary</p>
+        <p class="page-subtitle">Team workload and request summary. Refreshes every 30 seconds.</p>
       </div>
       <button mat-stroked-button routerLink="/dashboard" class="go-dashboard-btn">
         <mat-icon>list</mat-icon>
-        All Requests
+        Work queue
       </button>
     </div>
 
@@ -148,9 +149,58 @@ import { StatsService, type WorkspaceStats } from '../../core/services/stats.ser
           </mat-card-content>
         </mat-card>
       </div>
+
+      <div class="workload-row">
+        <mat-card class="breakdown-card workload-card">
+          <mat-card-header>
+            <mat-card-title>Team workload</mat-card-title>
+            <mat-card-subtitle>Active requests per agent. Open a request to reassign it.</mat-card-subtitle>
+          </mat-card-header>
+          <mat-divider></mat-divider>
+          <mat-card-content>
+            <p class="workload-empty" *ngIf="workload.length === 0">No agents to show yet.</p>
+            <div class="table-scroll" *ngIf="workload.length > 0">
+              <table class="workload-table">
+                <caption class="sr-only">Active, waiting and urgent requests for each agent</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Agent</th>
+                    <th scope="col">Active</th>
+                    <th scope="col">Waiting for customer</th>
+                    <th scope="col">Urgent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let w of workload">
+                    <th scope="row">{{ w.agent.name }}</th>
+                    <td>{{ w.active }}</td>
+                    <td>{{ w.waiting }}</td>
+                    <td>{{ w.urgent }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="workload-footer">
+              Unassigned requests: <strong>{{ stats.unassigned }}</strong>
+              · <a routerLink="/dashboard" class="workload-link">Open the work queue</a>
+            </p>
+          </mat-card-content>
+        </mat-card>
+      </div>
     </ng-container>
   `,
   styles: [`
+    .workload-row { margin-top: 16px; }
+    .workload-card .mat-mdc-card-content { padding-top: 12px; }
+    .table-scroll { overflow-x: auto; }
+    .workload-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .workload-table th, .workload-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    .workload-table td { font-variant-numeric: tabular-nums; }
+    .workload-empty, .workload-footer { color: #64748b; font-size: 0.85rem; }
+    .workload-footer { margin: 12px 0 0; }
+    .workload-link { color: #1e40af; font-weight: 500; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
     .mgr-header {
       display: flex;
       align-items: flex-start;
@@ -303,29 +353,62 @@ import { StatsService, type WorkspaceStats } from '../../core/services/stats.ser
 })
 export class ManagerDashboardComponent implements OnInit, OnDestroy {
   private statsService = inject(StatsService);
+  private authService = inject(AuthService);
 
   stats: WorkspaceStats | null = null;
+  workload: AgentWorkload[] = [];
   isLoading = true;
   error = '';
 
-  private pollSub?: Subscription;
+  private subs: Subscription[] = [];
 
   ngOnInit(): void {
     this.loadStats();
-    this.pollSub = interval(30000).pipe(
-      switchMap(() => this.statsService.getStats())
-    ).subscribe({ next: (s) => { this.stats = s; } });
+    // A failed refresh keeps the last values and polling continues.
+    this.subs.push(
+      interval(30000)
+        .pipe(switchMap(() => this.fetchOverview().pipe(catchError(() => EMPTY))))
+        .subscribe(({ stats, workload }) => {
+          this.stats = stats;
+          this.workload = workload;
+        })
+    );
   }
 
-  ngOnDestroy(): void { this.pollSub?.unsubscribe(); }
+  ngOnDestroy(): void {
+    this.subs.forEach((s) => s.unsubscribe());
+  }
 
   loadStats(): void {
     this.isLoading = true;
     this.error = '';
-    this.statsService.getStats().subscribe({
-      next: (s) => { this.stats = s; this.isLoading = false; },
-      error: () => { this.error = 'Failed to load stats. Please retry.'; this.isLoading = false; },
-    });
+    this.subs.push(
+      this.fetchOverview().subscribe({
+        next: ({ stats, workload }) => {
+          this.stats = stats;
+          this.workload = workload;
+          this.isLoading = false;
+        },
+        error: () => {
+          this.error = 'Failed to load the overview. Please retry.';
+          this.isLoading = false;
+        },
+      })
+    );
+  }
+
+  /** Summary counts plus the active work per agent. Counts only, so no full request list is loaded. */
+  private fetchOverview() {
+    return this.statsService.getStats().pipe(
+      switchMap((stats) =>
+        this.authService.getStaff().pipe(
+          map((staff: User[]) => staff.filter((u) => u.role === 'agent')),
+          switchMap((agents) => this.statsService.getWorkload(agents)),
+          catchError(() => of([] as AgentWorkload[])),
+          map((workload) => ({ stats, workload }))
+        )
+      )
+    );
   }
 
   pct(count: number): number {

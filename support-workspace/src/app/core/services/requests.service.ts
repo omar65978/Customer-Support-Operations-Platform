@@ -1,14 +1,23 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
-import type { SupportRequest, RequestStatus, User } from '../models';
 import { environment } from '../../../environments/environment';
+import type { RequestCategory, RequestPriority, RequestStatus, SupportRequest, User } from '../models';
+import { ConflictError, NotFoundError } from '../utils/errors';
+import { sanitizeSearch } from '../utils/search';
 
-export interface RequestFilters {
-  status?: RequestStatus | '';
-  priority?: string;
-  category?: string;
-  q?: string;
+/** Work-queue views. "attention" = open or in-progress work that is unassigned, urgent or high. */
+export type RequestView = 'all' | 'attention' | 'unassigned' | 'urgent' | 'mine';
+export type SortField = 'updated_at' | 'created_at' | 'urgency_rank' | 'reference' | 'title';
+
+export interface RequestQuery {
+  view: RequestView;
+  status: RequestStatus | '';
+  priority: RequestPriority | '';
+  category: RequestCategory | '';
+  search: string;
+  sortBy: SortField;
+  sortDirection: 'asc' | 'desc';
 }
 
 export interface RequestPage {
@@ -18,8 +27,69 @@ export interface RequestPage {
   pageSize: number;
 }
 
-function mapRequest(r: any): SupportRequest {
-  if (!r) return r;
+export const DEFAULT_REQUEST_QUERY: RequestQuery = {
+  view: 'all',
+  status: '',
+  priority: '',
+  category: '',
+  search: '',
+  sortBy: 'updated_at',
+  sortDirection: 'desc',
+};
+
+function orderFor(query: RequestQuery): string {
+  const direction = query.sortDirection;
+  if (query.sortBy === 'urgency_rank') return `urgency_rank.${direction},updated_at.desc`;
+  return `${query.sortBy}.${direction}`;
+}
+
+/**
+ * Builds the server-side query for staff. Agents only see their own requests and unclaimed
+ * ones; managers see everything. Row Level Security enforces the same rule. The conditions
+ * are sent together in one `and` group, so every filter is applied on the server.
+ */
+export function buildStaffRequestParams(query: RequestQuery, staff: Pick<User, 'id' | 'role'>): HttpParams {
+  const conditions: string[] = [];
+
+  switch (query.view) {
+    case 'attention':
+      conditions.push('or(status.eq.open,status.eq.in_progress)');
+      conditions.push('or(assigned_agent_id.is.null,priority.eq.urgent,priority.eq.high)');
+      break;
+    case 'unassigned':
+      conditions.push('assigned_agent_id.is.null');
+      break;
+    case 'urgent':
+      conditions.push('priority.eq.urgent');
+      break;
+    case 'mine':
+      conditions.push(`assigned_agent_id.eq.${staff.id}`);
+      break;
+    default:
+      if (staff.role === 'agent') {
+        conditions.push(`or(assigned_agent_id.is.null,assigned_agent_id.eq.${staff.id})`);
+      }
+  }
+
+  if (query.status) conditions.push(`status.eq.${query.status}`);
+  if (query.priority) conditions.push(`priority.eq.${query.priority}`);
+  if (query.category) conditions.push(`category.eq.${query.category}`);
+
+  const term = sanitizeSearch(query.search);
+  if (term) conditions.push(`or(title.ilike.*${term}*,reference.ilike.*${term}*)`);
+
+  let params = new HttpParams().set('order', orderFor(query));
+  if (conditions.length > 0) params = params.set('and', `(${conditions.join(',')})`);
+  return params;
+}
+
+function totalFrom(response: HttpResponse<unknown>, fallback: number): number {
+  const range = response.headers.get('content-range') ?? '';
+  const match = /\/(\d+)$/.exec(range);
+  return match ? Number(match[1]) : fallback;
+}
+
+export function mapRequest(r: any): SupportRequest {
   return {
     id: r.id,
     reference: r.reference,
@@ -29,102 +99,96 @@ function mapRequest(r: any): SupportRequest {
     priority: r.priority,
     status: r.status,
     customerId: r.customer_id ?? r.customerId,
-    assignedAgentId: r.assigned_agent_id ?? r.assignedAgentId,
+    assignedAgentId: r.assigned_agent_id ?? r.assignedAgentId ?? null,
     createdAt: r.created_at ?? r.createdAt,
     updatedAt: r.updated_at ?? r.updatedAt,
-    resolvedAt: r.resolved_at ?? r.resolvedAt,
+    resolvedAt: r.resolved_at ?? r.resolvedAt ?? null,
   };
 }
+
+const RETURN_REPRESENTATION = new HttpHeaders({ Prefer: 'return=representation' });
 
 @Injectable({ providedIn: 'root' })
 export class RequestsService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/requests`;
-  private patchHeaders = { 'Prefer': 'return=representation' };
 
-  getAll(filters: RequestFilters = {}, agentId?: string, isManager = false, page = 1, pageSize = 10): Observable<RequestPage> {
-    let params = new HttpParams();
-    params = params.set('order', 'updated_at.desc');
+  list(query: RequestQuery, staff: Pick<User, 'id' | 'role'>, page: number, pageSize: number): Observable<RequestPage> {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    return this.http
+      .get<any[]>(this.base, {
+        params: buildStaffRequestParams(query, staff),
+        headers: { Range: `${from}-${to}`, Prefer: 'count=exact' },
+        observe: 'response',
+      })
+      .pipe(
+        map((response) => {
+          const rows = Array.isArray(response.body) ? response.body : [];
+          return {
+            data: rows.map(mapRequest),
+            total: totalFrom(response, rows.length),
+            page,
+            pageSize,
+          };
+        })
+      );
+  }
 
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize - 1;
+  /** Number of requests in a view. Reads only the count, not the rows. */
+  count(query: RequestQuery, staff: Pick<User, 'id' | 'role'>): Observable<number> {
+    return this.http
+      .get<any[]>(this.base, {
+        params: buildStaffRequestParams(query, staff),
+        headers: { Range: '0-0', Prefer: 'count=exact' },
+        observe: 'response',
+      })
+      .pipe(map((response) => totalFrom(response, 0)));
+  }
 
-    if (!isManager && agentId) params = params.set('assigned_agent_id', `eq.${agentId}`);
-    if (filters.status) params = params.set('status', `eq.${filters.status}`);
-    if (filters.priority) params = params.set('priority', `eq.${filters.priority}`);
-    if (filters.category) params = params.set('category', `eq.${filters.category}`);
-    if (filters.q) params = params.set('title', `ilike.%${filters.q}%`);
-
-    const headers = {
-      'Prefer': 'count=exact',
-      'Range': `${start}-${end}`
-    };
-
-    return this.http.get<any[]>(this.base, { params, headers, observe: 'response' }).pipe(
-      map((response: HttpResponse<any[]>) => {
-        const contentRange = response.headers.get('content-range');
-        let total = 0;
-        if (contentRange) {
-          const parts = contentRange.split('/');
-          if (parts.length === 2 && parts[1] !== '*') {
-            total = parseInt(parts[1], 10);
-          }
-        }
-        const rawData = response.body ?? [];
-        const data = rawData.map(mapRequest);
-        return { data, total, page, pageSize };
+  getOne(id: string): Observable<SupportRequest> {
+    return this.http.get<any[]>(this.base, { params: { id: `eq.${id}`, select: '*' } }).pipe(
+      map((rows) => {
+        const row = Array.isArray(rows) ? rows[0] : undefined;
+        if (!row) throw new NotFoundError();
+        return mapRequest(row);
       })
     );
   }
 
-  getOne(id: string): Observable<SupportRequest> {
-    return this.http.get<any[]>(`${this.base}?id=eq.${id}`).pipe(
-      map(res => mapRequest(Array.isArray(res) && res.length > 0 ? res[0] : res))
-    );
+  /** Takes an unassigned request. Fails with a conflict if someone else has claimed it first. */
+  claim(id: string, staffId: string): Observable<SupportRequest> {
+    return this.http
+      .patch<any[]>(this.base, { assigned_agent_id: staffId }, {
+        params: { id: `eq.${id}`, assigned_agent_id: 'is.null' },
+        headers: RETURN_REPRESENTATION,
+      })
+      .pipe(map((rows) => this.updatedOrConflict(rows, 'Someone else has already claimed this request. Refresh to see the current owner.')));
   }
 
-  updateStatus(id: string, status: RequestStatus): Observable<SupportRequest> {
-    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
-      status,
-      updated_at: new Date().toISOString(),
-      resolved_at: status === 'resolved' ? new Date().toISOString() : null,
-    }, { headers: this.patchHeaders }).pipe(
-      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
-    );
+  /** Assigns or reassigns a request. Only managers can do this (enforced by the database). */
+  assign(id: string, currentAgentId: string | null, nextAgentId: string): Observable<SupportRequest> {
+    return this.http
+      .patch<any[]>(this.base, { assigned_agent_id: nextAgentId }, {
+        params: { id: `eq.${id}`, assigned_agent_id: currentAgentId ? `eq.${currentAgentId}` : 'is.null' },
+        headers: RETURN_REPRESENTATION,
+      })
+      .pipe(map((rows) => this.updatedOrConflict(rows, 'This request was reassigned or changed while you were working on it. Refresh and try again.')));
   }
 
-  assign(id: string, agentId: string | null): Observable<SupportRequest> {
-    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
-      assigned_agent_id: agentId,
-      status: agentId ? 'in_progress' : 'open',
-      updated_at: new Date().toISOString(),
-    }, { headers: this.patchHeaders }).pipe(
-      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
-    );
+  /** Changes status only if it still has the value the screen shows. */
+  updateStatus(id: string, from: RequestStatus, to: RequestStatus): Observable<SupportRequest> {
+    return this.http
+      .patch<any[]>(this.base, { status: to }, {
+        params: { id: `eq.${id}`, status: `eq.${from}` },
+        headers: RETURN_REPRESENTATION,
+      })
+      .pipe(map((rows) => this.updatedOrConflict(rows, 'The status changed while you were working on it. Refresh to see the latest status.')));
   }
 
-  close(id: string): Observable<SupportRequest> {
-    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
-      status: 'closed',
-      updated_at: new Date().toISOString(),
-    }, { headers: this.patchHeaders }).pipe(
-      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
-    );
-  }
-
-  reopen(id: string): Observable<SupportRequest> {
-    return this.http.patch<any[]>(`${this.base}?id=eq.${id}`, {
-      status: 'in_progress',
-      resolved_at: null,
-      updated_at: new Date().toISOString(),
-    }, { headers: this.patchHeaders }).pipe(
-      map(res => mapRequest(Array.isArray(res) ? res[0] : res))
-    );
-  }
-
-  getAllAgentsForLookup(): Observable<User[]> {
-    return this.http.get<User[]>(`${environment.apiUrl}/users?role=eq.agent&select=id,email,name,role`).pipe(
-      map(users => (Array.isArray(users) ? users : []))
-    );
+  private updatedOrConflict(rows: any[], conflictMessage: string): SupportRequest {
+    const row = Array.isArray(rows) ? rows[0] : undefined;
+    if (!row) throw new ConflictError(conflictMessage);
+    return mapRequest(row);
   }
 }

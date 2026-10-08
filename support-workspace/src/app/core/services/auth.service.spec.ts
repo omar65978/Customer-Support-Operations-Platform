@@ -1,99 +1,105 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { AuthService } from './auth.service';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { AuthService, STAFF_ONLY_MESSAGE } from './auth.service';
+import { AccountError } from '../utils/errors';
 import { environment } from '../../../environments/environment';
+
+const TOKEN_URL = `${environment.supabaseUrl}/auth/v1/token?grant_type=password`;
+const PROFILE_URL = `${environment.apiUrl}/users`;
 
 describe('AuthService', () => {
   let service: AuthService;
-  let httpMock: HttpTestingController;
+  let http: HttpTestingController;
+
+  function setup(): void {
+    service = TestBed.inject(AuthService);
+    http = TestBed.inject(HttpTestingController);
+  }
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({
-      providers: [AuthService, provideHttpClient(), provideHttpClientTesting()],
-    });
-    service = TestBed.inject(AuthService);
-    httpMock = TestBed.inject(HttpTestingController);
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
   });
 
   afterEach(() => {
-    httpMock.verify();
+    http.verify();
     localStorage.clear();
   });
 
-  it('should be created', () => {
-    expect(service).toBeTruthy();
-  });
-
-  it('initializes with no user when localStorage is empty', () => {
+  it('starts signed out when nothing is stored', () => {
+    setup();
     expect(service.currentUser).toBeNull();
     expect(service.isLoggedIn).toBeFalse();
   });
 
-  it('restores user from localStorage on initialization', () => {
-    localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'agent1@support.com', name: 'Sarah', role: 'agent' }));
-    localStorage.setItem('token', 'valid-jwt-token');
+  it('takes the role from the users table, not from sign-in metadata', () => {
+    setup();
+    let signedIn: { role: string } | undefined;
+    service.login({ email: 'sarah@support.com', password: 'pw' }).subscribe((u) => (signedIn = u));
 
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      providers: [AuthService, provideHttpClient(), provideHttpClientTesting()],
+    http.expectOne(TOKEN_URL).flush({
+      access_token: 'token-a',
+      user: { id: 'agent-1', user_metadata: { role: 'customer' } },
     });
-    const freshService = TestBed.inject(AuthService);
-    expect(freshService.currentUser).toBeTruthy();
-    expect(freshService.currentUser?.email).toBe('agent1@support.com');
-    expect(freshService.isLoggedIn).toBeTrue();
+    const profile = http.expectOne((r) => r.url === PROFILE_URL);
+    expect(profile.request.params.get('id')).toBe('eq.agent-1');
+    profile.flush([{ id: 'agent-1', email: 'sarah@support.com', name: 'Sarah Chen', role: 'agent' }]);
+
+    expect(signedIn?.role).toBe('agent');
+    expect(service.isLoggedIn).toBeTrue();
+    expect(localStorage.getItem('token')).toBe('token-a');
+    expect(JSON.parse(localStorage.getItem('user') ?? '{}').role).toBe('agent');
   });
 
-  it('sets user and token in localStorage after successful login', () => {
-    service.login({ email: 'agent1@support.com', password: 'password123' }).subscribe(res => {
-      expect(res.accessToken).toBe('test-jwt');
-      expect(res.user.email).toBe('agent1@support.com');
-      expect(localStorage.getItem('token')).toBe('test-jwt');
-    });
+  it('refuses a customer account and stores nothing', () => {
+    setup();
+    let error: unknown;
+    service.login({ email: 'alice@example.com', password: 'pw' }).subscribe({ error: (e) => (error = e) });
 
-    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
-    expect(req.request.method).toBe('POST');
-    req.flush({
-      access_token: 'test-jwt',
-      user: { id: 'u3', email: 'agent1@support.com', user_metadata: { full_name: 'Sarah Chen', role: 'agent' } }
-    });
-  });
+    http.expectOne(TOKEN_URL).flush({ access_token: 'customer-token', user: { id: 'c1' } });
+    http.expectOne((r) => r.url === PROFILE_URL).flush([{ id: 'c1', email: 'alice@example.com', name: 'Alice', role: 'customer' }]);
+    // Best-effort sign-out of the rejected session.
+    http.expectOne(`${environment.supabaseUrl}/auth/v1/logout`).flush({});
 
-  it('sets manager role correctly after login', () => {
-    service.login({ email: 'manager@support.com', password: 'password123' }).subscribe(res => {
-      expect(res.user.role).toBe('manager');
-      expect(res.user.name).toBe('Maria Rodriguez');
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
-    req.flush({
-      access_token: 'mgr-jwt',
-      user: { id: 'u5', email: 'manager@support.com', user_metadata: { full_name: 'Maria Rodriguez', role: 'manager' } }
-    });
-  });
-
-  it('clears localStorage and user state on logout', () => {
-    localStorage.setItem('token', 'some-token');
-    localStorage.setItem('user', '{}');
-    service.logout();
+    expect(error).toBeInstanceOf(AccountError);
+    expect((error as Error).message).toBe(STAFF_ONLY_MESSAGE);
     expect(localStorage.getItem('token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
-    expect(service.currentUser).toBeNull();
+    expect(service.isLoggedIn).toBeFalse();
   });
 
-  it('emits updated user through currentUser$ observable after login', () => {
-    let emittedUser: any = null;
-    service.currentUser$.subscribe(u => emittedUser = u);
+  it('explains a wrong password in plain language', () => {
+    setup();
+    let error: unknown;
+    service.login({ email: 'sarah@support.com', password: 'bad' }).subscribe({ error: (e) => (error = e) });
+    http.expectOne(TOKEN_URL).flush({ error_description: 'Invalid login credentials' }, { status: 400, statusText: 'Bad Request' });
+    expect((error as Error).message).toMatch(/invalid email or password/i);
+  });
 
-    service.login({ email: 'agent1@support.com', password: 'pass' }).subscribe();
-    const req = httpMock.expectOne(r => r.url.includes('/auth/v1/token'));
-    req.flush({
-      access_token: 'jwt',
-      user: { id: 'u3', email: 'agent1@support.com', user_metadata: { full_name: 'Sarah', role: 'agent' } }
-    });
+  it('discards a stored customer session on start-up', () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'c1', email: 'alice@example.com', name: 'Alice', role: 'customer' }));
+    localStorage.setItem('token', 'customer-token');
+    setup();
+    expect(service.currentUser).toBeNull();
+    expect(localStorage.getItem('token')).toBeNull();
+  });
 
-    expect(emittedUser).toBeTruthy();
-    expect(emittedUser.email).toBe('agent1@support.com');
+  it('restores a stored staff session on start-up', () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'm1', email: 'maria@support.com', name: 'Maria', role: 'manager' }));
+    localStorage.setItem('token', 'manager-token');
+    setup();
+    expect(service.currentUser?.role).toBe('manager');
+    expect(service.isLoggedIn).toBeTrue();
+  });
+
+  it('logout clears the stored session', () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'a1', email: 'a@x.com', name: 'Agent', role: 'agent' }));
+    localStorage.setItem('token', 'agent-token');
+    setup();
+    service.logout();
+    http.expectOne(`${environment.supabaseUrl}/auth/v1/logout`).flush({});
+    expect(service.currentUser).toBeNull();
+    expect(localStorage.getItem('token')).toBeNull();
   });
 });

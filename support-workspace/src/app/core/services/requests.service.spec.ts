@@ -1,111 +1,143 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { RequestsService } from './requests.service';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { RequestsService, buildStaffRequestParams, DEFAULT_REQUEST_QUERY, type RequestQuery } from './requests.service';
+import { ConflictError, NotFoundError } from '../utils/errors';
 import { environment } from '../../../environments/environment';
+
+const agent = { id: 'agent-1', role: 'agent' as const };
+const manager = { id: 'mgr-1', role: 'manager' as const };
+const query = (patch: Partial<RequestQuery> = {}): RequestQuery => ({ ...DEFAULT_REQUEST_QUERY, ...patch });
+
+const rawRequest = {
+  id: 'r1', reference: 'REQ-001001', title: 'Refund not received', description: 'Refund was promised last week',
+  category: 'billing', priority: 'high', status: 'open', customer_id: 'c1', assigned_agent_id: null,
+  created_at: '2026-10-01T09:00:00Z', updated_at: '2026-10-01T09:00:00Z', resolved_at: null,
+};
+
+describe('buildStaffRequestParams', () => {
+  it('limits an agent to own and unclaimed requests on the server', () => {
+    const and = buildStaffRequestParams(query(), agent).get('and') ?? '';
+    expect(and).toContain('or(assigned_agent_id.is.null,assigned_agent_id.eq.agent-1)');
+  });
+
+  it('does not limit a manager to a single owner', () => {
+    const params = buildStaffRequestParams(query(), manager);
+    expect(params.has('and')).toBeFalse();
+    expect(params.get('order')).toBe('updated_at.desc');
+  });
+
+  it('builds the "needs attention" view from open or in-progress work that is unassigned or urgent/high', () => {
+    const and = buildStaffRequestParams(query({ view: 'attention' }), manager).get('and') ?? '';
+    expect(and).toContain('or(status.eq.open,status.eq.in_progress)');
+    expect(and).toContain('or(assigned_agent_id.is.null,priority.eq.urgent,priority.eq.high)');
+  });
+
+  it('builds the unassigned, urgent and mine views', () => {
+    expect(buildStaffRequestParams(query({ view: 'unassigned' }), manager).get('and')).toContain('assigned_agent_id.is.null');
+    expect(buildStaffRequestParams(query({ view: 'urgent' }), manager).get('and')).toContain('priority.eq.urgent');
+    expect(buildStaffRequestParams(query({ view: 'mine' }), agent).get('and')).toContain('assigned_agent_id.eq.agent-1');
+  });
+
+  it('combines view, status, urgency and category filters in one group', () => {
+    const and = buildStaffRequestParams(
+      query({ view: 'urgent', status: 'in_progress', priority: 'urgent', category: 'technical' }),
+      manager
+    ).get('and') ?? '';
+    expect(and).toBe('(priority.eq.urgent,status.eq.in_progress,priority.eq.urgent,category.eq.technical)');
+  });
+
+  it('turns search text into a title/reference match without filter syntax', () => {
+    const and = buildStaffRequestParams(query({ search: 'refund),(status.eq.closed' }), manager).get('and') ?? '';
+    expect(and).toContain('or(title.ilike.*refund status.eq.closed*,reference.ilike.*refund status.eq.closed*)');
+  });
+
+  it('sorts by urgency with a secondary order on update time', () => {
+    const params = buildStaffRequestParams(query({ sortBy: 'urgency_rank', sortDirection: 'desc' }), manager);
+    expect(params.get('order')).toBe('urgency_rank.desc,updated_at.desc');
+  });
+});
 
 describe('RequestsService', () => {
   let service: RequestsService;
-  let httpMock: HttpTestingController;
+  let http: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [RequestsService, provideHttpClient(), provideHttpClientTesting()],
-    });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     service = TestBed.inject(RequestsService);
-    httpMock = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => http.verify());
 
-  it('should be created', () => {
-    expect(service).toBeTruthy();
-  });
-
-  it('getAll for manager fetches without assigned_agent_id filter', () => {
-    service.getAll({}, undefined, true, 1, 10).subscribe(page => {
-      expect(page.data.length).toBe(1);
-      expect(page.data[0].title).toBe('Test');
+  it('list requests a page with count and reads the total', () => {
+    let total = -1;
+    service.list(query(), manager, 2, 10).subscribe((page) => {
+      total = page.total;
+      expect(page.data[0]).toEqual(jasmine.objectContaining({ customerId: 'c1', assignedAgentId: null, reference: 'REQ-001001' }));
     });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests') && !r.params.has('assigned_agent_id'));
-    expect(req.request.method).toBe('GET');
+    const req = http.expectOne((r) => r.url === `${environment.apiUrl}/requests`);
+    expect(req.request.headers.get('Range')).toBe('10-19');
     expect(req.request.headers.get('Prefer')).toBe('count=exact');
-    expect(req.request.headers.get('Range')).toBe('0-9');
-    req.flush([{ id: 'r1', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: 'a1', category: 'billing', priority: 'high', status: 'open', created_at: '2024-01-01', updated_at: '2024-01-01' }], {
-      headers: { 'content-range': '0-0/1' }
-    });
+    req.flush([rawRequest], { headers: { 'content-range': '10-10/31' } });
+    expect(total).toBe(31);
   });
 
-  it('getAll for agent adds assigned_agent_id filter', () => {
-    service.getAll({}, 'agent-id-1', false, 1, 10).subscribe();
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests') && r.params.get('assigned_agent_id') === 'eq.agent-id-1');
-    expect(req.request.method).toBe('GET');
-    req.flush([], { headers: { 'content-range': '*/0' } });
+  it('count reads only the number of matching rows', () => {
+    let value = -1;
+    service.count(query({ view: 'unassigned' }), manager).subscribe((n) => (value = n));
+    const req = http.expectOne((r) => r.url === `${environment.apiUrl}/requests`);
+    expect(req.request.headers.get('Range')).toBe('0-0');
+    req.flush([], { headers: { 'content-range': '*/4' } });
+    expect(value).toBe(4);
   });
 
-  it('getAll applies status filter as query parameter', () => {
-    service.getAll({ status: 'open' }, undefined, true, 1, 10).subscribe();
-
-    const req = httpMock.expectOne(r => r.params.get('status') === 'eq.open');
-    req.flush([], { headers: { 'content-range': '*/0' } });
+  it('claim only succeeds while the request is still unassigned', () => {
+    let claimed: { assignedAgentId: string | null } | undefined;
+    service.claim('r1', 'agent-1').subscribe((r) => (claimed = r));
+    const req = http.expectOne((r) => r.method === 'PATCH');
+    expect(req.request.params.get('assigned_agent_id')).toBe('is.null');
+    expect(req.request.params.get('id')).toBe('eq.r1');
+    expect(req.request.body).toEqual({ assigned_agent_id: 'agent-1' });
+    req.flush([{ ...rawRequest, assigned_agent_id: 'agent-1', status: 'in_progress' }]);
+    expect(claimed?.assignedAgentId).toBe('agent-1');
   });
 
-  it('getAll reads total from content-range header', () => {
-    service.getAll({}, undefined, true, 1, 10).subscribe(page => {
-      expect(page.total).toBe(25);
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests'));
-    req.flush([], { headers: { 'content-range': '0-9/25' } });
+  it('claim reports a conflict when another agent got there first', () => {
+    let error: unknown;
+    service.claim('r1', 'agent-2').subscribe({ error: (e) => (error = e) });
+    http.expectOne((r) => r.method === 'PATCH').flush([]);
+    expect(error).toBeInstanceOf(ConflictError);
+    expect((error as Error).message).toMatch(/already claimed/i);
   });
 
-  it('updateStatus sends PATCH with resolved timestamp', () => {
-    service.updateStatus('r1', 'resolved').subscribe(r => {
-      expect(r.status).toBe('resolved');
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body.status).toBe('resolved');
-    expect(req.request.body.resolved_at).toBeTruthy();
-    expect(req.request.headers.get('Prefer')).toBe('return=representation');
-    req.flush([{ id: 'r1', status: 'resolved', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: null, category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: '2024-01-02' }]);
+  it('reassign expects the current owner so a stale screen cannot overwrite a newer one', () => {
+    service.assign('r1', 'agent-1', 'agent-2').subscribe();
+    const req = http.expectOne((r) => r.method === 'PATCH');
+    expect(req.request.params.get('assigned_agent_id')).toBe('eq.agent-1');
+    expect(req.request.body).toEqual({ assigned_agent_id: 'agent-2' });
+    req.flush([{ ...rawRequest, assigned_agent_id: 'agent-2' }]);
   });
 
-  it('assign sends PATCH with agentId and sets status to in_progress', () => {
-    service.assign('r1', 'agent-1').subscribe(r => {
-      expect(r.assignedAgentId).toBe('agent-1');
-      expect(r.status).toBe('in_progress');
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body.assigned_agent_id).toBe('agent-1');
-    expect(req.request.body.status).toBe('in_progress');
-    req.flush([{ id: 'r1', status: 'in_progress', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: 'agent-1', category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
+  it('updateStatus sends only the new status and the status it expects to replace', () => {
+    service.updateStatus('r1', 'in_progress', 'resolved').subscribe();
+    const req = http.expectOne((r) => r.method === 'PATCH');
+    expect(req.request.params.get('status')).toBe('eq.in_progress');
+    expect(req.request.body).toEqual({ status: 'resolved' });
+    req.flush([{ ...rawRequest, status: 'resolved' }]);
   });
 
-  it('close sends PATCH with status closed', () => {
-    service.close('r1').subscribe(r => {
-      expect(r.status).toBe('closed');
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
-    expect(req.request.method).toBe('PATCH');
-    expect(req.request.body.status).toBe('closed');
-    req.flush([{ id: 'r1', status: 'closed', title: 'Test', reference: 'REQ-001', customer_id: 'c1', assigned_agent_id: null, category: 'billing', priority: 'high', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
+  it('updateStatus reports a conflict when the status has moved on', () => {
+    let error: unknown;
+    service.updateStatus('r1', 'in_progress', 'resolved').subscribe({ error: (e) => (error = e) });
+    http.expectOne((r) => r.method === 'PATCH').flush([]);
+    expect(error).toBeInstanceOf(ConflictError);
   });
 
-  it('maps snake_case response to camelCase model', () => {
-    service.getOne('r1').subscribe(r => {
-      expect(r.customerId).toBe('cust-1');
-      expect(r.assignedAgentId).toBe('agt-1');
-      expect(r.createdAt).toBe('2024-01-01');
-    });
-
-    const req = httpMock.expectOne(r => r.url.includes('/requests?id=eq.r1'));
-    req.flush([{ id: 'r1', title: 'Test', reference: 'REQ-001', customer_id: 'cust-1', assigned_agent_id: 'agt-1', category: 'billing', priority: 'high', status: 'open', created_at: '2024-01-01', updated_at: '2024-01-01', resolved_at: null }]);
+  it('getOne reports a missing or hidden request as not found', () => {
+    let error: unknown;
+    service.getOne('someone-elses').subscribe({ error: (e) => (error = e) });
+    http.expectOne((r) => r.url === `${environment.apiUrl}/requests`).flush([]);
+    expect(error).toBeInstanceOf(NotFoundError);
   });
 });

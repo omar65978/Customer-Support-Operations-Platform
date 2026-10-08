@@ -54,17 +54,8 @@ import { map, shareReplay } from 'rxjs';
             routerLinkActive="nav-item--active"
             id="nav-dashboard"
           >
-            <mat-icon class="nav-icon">dashboard</mat-icon>
-            <span class="nav-label">Dashboard</span>
-          </a>
-          <a
-            class="nav-item"
-            routerLink="/requests"
-            routerLinkActive="nav-item--active"
-            id="nav-requests"
-          >
             <mat-icon class="nav-icon">inbox</mat-icon>
-            <span class="nav-label">All Requests</span>
+            <span class="nav-label">Work queue</span>
           </a>
           <a
             *ngIf="(currentUser$ | async)?.role === 'manager'"

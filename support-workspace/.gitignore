@@ -1,5 +1,13 @@
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
+# Local settings. Keep secrets out of Git.
+.env
+.env.local
+.env.*.local
+
+# Generated from .env.local by scripts/generate-environment.mjs
+/src/environments/environment.ts
+
 # Compiled output
 /dist
 /tmp

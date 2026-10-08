@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../../core/services/auth.service';
+import { describeError } from '../../../core/utils/errors';
 
 @Component({
   selector: 'app-login',
@@ -38,6 +39,10 @@ import { AuthService } from '../../../core/services/auth.service';
         <mat-card class="login-card">
           <mat-card-content>
             <form [formGroup]="form" (ngSubmit)="onSubmit()" id="login-form">
+              <div *ngIf="sessionExpired && !errorMessage" class="notice" role="status">
+                Your session has expired. Please sign in again.
+              </div>
+
               <div *ngIf="errorMessage" class="error-alert" role="alert">
                 <mat-icon>error_outline</mat-icon>
                 {{ errorMessage }}
@@ -99,6 +104,19 @@ import { AuthService } from '../../../core/services/auth.service';
     </div>
   `,
   styles: [`
+    .notice {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border-radius: 10px;
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      font-size: 0.875rem;
+    }
+
     .login-container {
       min-height: 100vh;
       display: flex;
@@ -227,6 +245,10 @@ export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
   private fb = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
+
+  /** True when the user was sent here because the session expired. */
+  readonly sessionExpired = this.route.snapshot.queryParamMap.get('reason') === 'expired';
 
   form: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -247,8 +269,8 @@ export class LoginComponent {
     const { email, password } = this.form.value as { email: string; password: string };
     this.auth.login({ email, password }).subscribe({
       next: () => this.router.navigate(['/dashboard']),
-      error: () => {
-        this.errorMessage = 'Invalid email or password. Please try again.';
+      error: (error: unknown) => {
+        this.errorMessage = describeError(error, 'We could not sign you in. Please try again.');
         this.isSubmitting = false;
       },
     });

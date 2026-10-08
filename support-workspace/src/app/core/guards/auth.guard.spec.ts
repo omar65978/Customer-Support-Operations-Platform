@@ -1,50 +1,55 @@
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router, UrlTree } from '@angular/router';
 import { authGuard } from './auth.guard';
-import { AuthService } from '../services/auth.service';
+import { managerGuard } from './manager.guard';
 
-describe('authGuard', () => {
-  let router: Router;
-  let authService: AuthService;
+function store(user: object): void {
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('token', 'a.b.c');
+}
 
+describe('route guards', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [
-        AuthService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([
-          { path: 'login', children: [] },
-          { path: 'dashboard', canActivate: [authGuard], children: [] },
-        ]),
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
-    router = TestBed.inject(Router);
-    authService = TestBed.inject(AuthService);
   });
 
-  afterEach(() => {
-    localStorage.clear();
+  afterEach(() => localStorage.clear());
+
+  function runGuard(guard: typeof authGuard) {
+    return TestBed.runInInjectionContext(() => guard({} as never, {} as never));
+  }
+
+  it('lets an agent into the workspace', () => {
+    store({ id: 'a1', email: 'a@x.com', name: 'Agent', role: 'agent' });
+    expect(runGuard(authGuard)).toBeTrue();
   });
 
-  it('returns true when user is authenticated', () => {
-    localStorage.setItem('user', JSON.stringify({ id: 'u3', email: 'agent1@support.com', name: 'Sarah', role: 'agent', accessToken: 'token' }));
-    localStorage.setItem('token', 'token');
-
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({
-      providers: [AuthService, provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
-    });
-    const freshAuth = TestBed.inject(AuthService);
-    expect(freshAuth.isLoggedIn).toBeTrue();
+  it('sends a signed-out visitor to the login page', () => {
+    const result = runGuard(authGuard);
+    expect(result instanceof UrlTree).toBeTrue();
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/login');
   });
 
-  it('returns false (redirect to /login) when user is not authenticated', () => {
-    const result = TestBed.runInInjectionContext(() => authGuard(null as any, null as any));
-    expect(result).not.toBe(true);
+  it('sends a stored customer session to the login page', () => {
+    store({ id: 'c1', email: 'alice@example.com', name: 'Alice', role: 'customer' });
+    const result = runGuard(authGuard);
+    expect(result instanceof UrlTree).toBeTrue();
+  });
+
+  it('lets only managers into the overview', () => {
+    store({ id: 'm1', email: 'm@x.com', name: 'Maria', role: 'manager' });
+    expect(runGuard(managerGuard)).toBeTrue();
+  });
+
+  it('keeps agents out of the overview', () => {
+    store({ id: 'a1', email: 'a@x.com', name: 'Agent', role: 'agent' });
+    const result = runGuard(managerGuard);
+    expect(result instanceof UrlTree).toBeTrue();
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/dashboard');
   });
 });

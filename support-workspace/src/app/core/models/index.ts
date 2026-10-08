@@ -3,15 +3,14 @@ export type RequestCategory = 'billing' | 'technical' | 'account' | 'general';
 export type RequestPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type RequestStatus = 'open' | 'in_progress' | 'waiting_for_customer' | 'resolved' | 'closed';
 
+/** Roles that may use the Support Workspace. Customers use the customer portal. */
+export const STAFF_ROLES: readonly UserRole[] = ['agent', 'manager'];
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: UserRole;
-}
-
-export interface AuthUser extends User {
-  accessToken: string;
 }
 
 export interface SupportRequest {
@@ -53,7 +52,6 @@ export interface Attachment {
   createdAt: string;
 }
 
-
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -81,6 +79,10 @@ export const CATEGORY_LABELS: Record<RequestCategory, string> = {
   general: 'General',
 };
 
+/**
+ * Allowed status changes. The database enforces the same table, so an invalid change is
+ * rejected even if this list is bypassed. Closing is only possible from Resolved.
+ */
 export const STATUS_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
   open: ['in_progress'],
   in_progress: ['waiting_for_customer', 'resolved'],
@@ -88,3 +90,10 @@ export const STATUS_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>>
   resolved: ['in_progress', 'closed'],
   closed: [],
 };
+
+/** Requests in these statuses accept replies, internal notes and attachments. */
+export const ACTIVE_STATUSES: readonly RequestStatus[] = ['open', 'in_progress', 'waiting_for_customer'];
+
+export function isStaffRole(role: string | undefined | null): role is 'agent' | 'manager' {
+  return role === 'agent' || role === 'manager';
+}
