@@ -10,7 +10,7 @@ npm ci
 npm start                     # http://localhost:4200
 ```
 
-`npm start`, `npm run build`, `npm run watch` and `npm test` first run `scripts/generate-environment.mjs`, which writes `src/environments/environment.ts` from the settings above (or from the environment variables on Vercel). That generated file is git-ignored.
+`npm start`, `npm run build`, `npm run watch` and `npm test` first run `scripts/generate-environment.mjs`, which writes `src/environments/environment.ts` from the settings above (or from the environment variables on Vercel). That generated file is git-ignored and shared by all of these scripts. If `.env.local` is missing, `npm test` writes placeholder values (the tests make no network calls), so run `npm start` again afterwards to restore the real values.
 
 ## Scripts
 

@@ -191,6 +191,7 @@ Both projects include a `vercel.json` that rewrites routes to `index.html`, so d
 |---|---|
 | "Configuration required" in the Customer Portal | `.env.local` is missing or its values are empty. Restart `npm run dev` after editing. |
 | `Missing Supabase settings` when starting the Support Workspace | Create `support-workspace/.env.local` with the `NG_APP_` values. |
+| The app suddenly talks to `test-project.supabase.co` | `npm test` ran without `.env.local` and wrote placeholder values into the shared generated file. Create `.env.local` and run `npm start` again. |
 | "Invalid email or password" | The account does not exist, or the password is different. Check **Authentication > Users**. |
 | "Please confirm your email address first" | Confirm via the email link, or turn off *Confirm email* for the demo. |
 | "This portal is for customers" / "This workspace is for support staff" | The account has the wrong role. Use the SQL in section 3 to set the role. |
