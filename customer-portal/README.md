@@ -1,32 +1,34 @@
-# React + TypeScript + Vite
+# Customer Portal (React)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Customers sign in, submit requests, follow their conversation, reply, reopen resolved requests, and attach or download files.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cp .env.example .env.local    # VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm ci
+npm run dev                   # http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Development server |
+| `npm test` | Vitest unit tests (47 tests) |
+| `npm run lint` | oxlint |
+| `npm run build` | Type check and production build into `dist/` |
+
+## Structure
+
+```
+src/
+├── config/supabase.ts        # Supabase URL, anon key and the REST/Auth/Storage paths
+├── api/                      # Calls to Supabase: auth, requests, messages, attachments, errors
+├── contexts/AuthContext.tsx  # Session state; accepts customer accounts only
+├── hooks/                    # Lists, request, conversation, attachments, polling
+├── pages/                    # Login, register, dashboard, new request, request detail
+└── components/               # Message thread, attachment panel, lifecycle tabs, cards
+```
+
+Configuration is read from Vite variables, so the values are never written into the source. Deployment notes are in `docs/SETUP.md` §8.

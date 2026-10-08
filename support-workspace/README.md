@@ -1,27 +1,40 @@
-# SupportWorkspace
+# Support Workspace (Angular)
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 18.2.21.
+Agents and managers work the queue: they take requests, reply, add internal notes, change status and attach files. Managers also see the team overview, and reassign requests.
 
-## Development server
+## Run
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+```bash
+cp .env.example .env.local    # NG_APP_SUPABASE_URL and NG_APP_SUPABASE_ANON_KEY
+npm ci
+npm start                     # http://localhost:4200
+```
 
-## Code scaffolding
+`npm start`, `npm run build`, `npm run watch` and `npm test` first run `scripts/generate-environment.mjs`, which writes `src/environments/environment.ts` from the settings above (or from the environment variables on Vercel). That generated file is git-ignored.
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+## Scripts
 
-## Build
+| Script | What it does |
+|---|---|
+| `npm start` | Development server |
+| `npm test` | Karma/Jasmine specs (52) in headless Chrome, runs once |
+| `npm run build` | Production build into `dist/support-workspace/browser` |
+| `npm run watch` | Development build that rebuilds on change |
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+## Structure
 
-## Running unit tests
-
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+```
+src/app/
+├── core/
+│   ├── services/     # auth, requests (queues, claims, status), messages, attachments, stats
+│   ├── guards/       # sign-in and manager guards
+│   ├── interceptors/ # API key, session token, expiry handling
+│   ├── models/       # types, labels, lifecycle transitions
+│   └── utils/        # errors, search cleaning, attachment rules
+├── features/
+│   ├── auth/login/
+│   ├── dashboard/                # Work queue
+│   ├── requests/request-detail/  # Conversation, internal notes, actions, attachments
+│   └── manager/                  # Overview and team workload
+└── layout/shell/                 # Navigation and user menu
+```
